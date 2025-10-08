@@ -1,0 +1,10 @@
+iteration,game_id,timestamp,total_moves,winner,termination_reason,unique_positions
+0,0,2025-10-05 19:45:44,82,draw,threefold_repetition,82
+0,1,2025-10-05 20:13:22,576,draw,seventy_five_moves,576
+0,2,2025-10-05 20:19:50,211,draw,stalemate,211
+0,3,2025-10-05 20:20:20,29,draw,threefold_repetition,29
+0,4,2025-10-05 20:21:07,41,draw,threefold_repetition,41
+0,5,2025-10-05 20:22:02,52,draw,threefold_repetition,52
+0,6,2025-10-05 20:23:41,67,draw,threefold_repetition,67
+0,7,2025-10-05 20:25:03,59,draw,threefold_repetition,59
+0,8,2025-10-05 20:26:49,79,draw,threefold_repetition,79

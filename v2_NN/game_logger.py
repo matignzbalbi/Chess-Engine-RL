@@ -55,28 +55,14 @@ class GameLogger:
                 ])
     
     def log_game_moves(self, iteration, game_id, moves_history):
-        """
-        Guarda los movimientos de una partida.
-        
-        Args:
-            iteration: Número de iteración de entrenamiento
-            game_id: ID único de la partida
-            moves_history: Lista de (move_number, player, move_uci, confidence, fen)
-        """
+
         with open(self.moves_file, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             for move_data in moves_history:
                 writer.writerow([iteration, game_id] + list(move_data))
     
     def log_game_stats(self, iteration, game_id, stats):
-        """
-        Guarda estadísticas generales de la partida.
-        
-        Args:
-            iteration: Número de iteración
-            game_id: ID de la partida
-            stats: Dict con 'total_moves', 'winner', 'termination_reason', etc.
-        """
+  
         with open(self.stats_file, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([
@@ -158,16 +144,7 @@ class GameLogger:
 
 
 def format_winner(value, current_player_turn):
-    """
-    Convierte el value del juego a un string legible.
-    
-    Args:
-        value: 1 (ganan blancas), -1 (ganan negras), 0 (empate)
-        current_player_turn: bool, True si es turno de blancas
-    
-    Returns:
-        'white', 'black', o 'draw'
-    """
+   
     if value == 0:
         return 'draw'
     elif value == 1:
@@ -177,15 +154,7 @@ def format_winner(value, current_player_turn):
 
 
 def format_termination(state):
-    """
-    Determina la razón de terminación del juego.
-    
-    Args:
-        state: chess.Board
-    
-    Returns:
-        String describiendo cómo terminó el juego
-    """
+
     if state.is_checkmate():
         return 'checkmate'
     elif state.is_stalemate():

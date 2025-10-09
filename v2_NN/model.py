@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class ResBlock(nn.Module):
-    """Bloque residual básico"""
     def __init__(self, num_hidden):
         super().__init__()
         self.conv1 = nn.Conv2d(num_hidden, num_hidden, kernel_size=3, padding=1)
@@ -21,17 +20,6 @@ class ResBlock(nn.Module):
 
 
 class ChessResNet(nn.Module):
-    """
-    Red neuronal ResNet para ajedrez, similar a AlphaZero.
-    
-    Arquitectura:
-    - Input: 8x8x12 (tablero con 12 canales: 6 tipos de piezas x 2 colores)
-    - Bloque inicial: Conv + BatchNorm + ReLU
-    - N bloques residuales
-    - Dos cabezas:
-        1. Policy head: predice probabilidades de movimientos
-        2. Value head: predice quién va ganando (-1 a +1)
-    """
     
     def __init__(self, game, num_resBlocks, num_hidden, input_channels=12):
         super().__init__()
@@ -76,19 +64,7 @@ class ChessResNet(nn.Module):
         )
         
     def forward(self, x):
-        """
-        Forward pass de la red.
-        
-        Args:
-            x: Tensor de forma (batch_size, 12, 8, 8)
-               Representa el tablero codificado
-        
-        Returns:
-            policy: Tensor de forma (batch_size, 4672)
-                   Logits para cada movimiento posible
-            value: Tensor de forma (batch_size, 1)
-                  Valor de la posición entre -1 y 1
-        """
+     
         # 1. Bloque inicial
         x = self.startBlock(x)
         
@@ -104,17 +80,7 @@ class ChessResNet(nn.Module):
 
 
 def create_chess_model(game, num_resBlocks=9, num_hidden=128):
-    """
-    Factory function para crear el modelo.
-    
-    Args:
-        game: Instancia de ChessGame
-        num_resBlocks: Número de bloques residuales (AlphaZero usa 19-40)
-        num_hidden: Canales en capas ocultas (AlphaZero usa 256)
-    
-    Returns:
-        Modelo de PyTorch
-    """
+ 
     model = ChessResNet(
         game=game,
         num_resBlocks=num_resBlocks,
@@ -126,7 +92,6 @@ def create_chess_model(game, num_resBlocks=9, num_hidden=128):
 
 # Función auxiliar para contar parámetros
 def count_parameters(model):
-    """Cuenta el número de parámetros entrenables del modelo"""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
@@ -137,12 +102,10 @@ if __name__ == "__main__":
     game = ChessGame()
     model = create_chess_model(game, num_resBlocks=4, num_hidden=64)
     
-    print("=== ARQUITECTURA DEL MODELO ===")
     print(model)
     print(f"\nNúmero de parámetros: {count_parameters(model):,}")
     
     # Probar forward pass
-    print("\n=== PRUEBA DE FORWARD PASS ===")
     batch_size = 2
     dummy_input = torch.randn(batch_size, 12, 8, 8)
     

@@ -15,26 +15,16 @@ class AlphaZero:
         self.args = args
         self.mcts = MCTS(game, args, model)
         
-        # Configurar device (GPU si está disponible)
+        # GPU si tenemos
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        print(f"Usando device: {self.device}")
+        print(f"Usando: {self.device}")
         
-        # Inicializar logger para guardar datos
         self.logger = GameLogger()
-        print(f"📊 Logs guardándose en: {self.logger.log_dir}/")
+        print(f"Logs guardándose en: {self.logger.log_dir}/")
         
     def selfPlay(self, iteration=0, game_id=0):
-        """
-        Juega una partida completa usando MCTS para generar datos de entrenamiento.
         
-        Args:
-            iteration: Número de iteración actual (para logging)
-            game_id: ID único de la partida (para logging)
-            
-        Returns:
-            memory: Lista de (estado_codificado, policy, outcome)
-        """
         memory = []
         moves_history = []  # Para guardar en CSV
         training_samples = []  # Para CSV de datos de entrenamiento
@@ -80,14 +70,11 @@ class AlphaZero:
             value, is_terminal = self.game.get_value_and_terminated(state, action)
             
             if is_terminal:
-                # Asignar outcomes a todos los estados guardados
                 returnMemory = []
                 for idx, (hist_state, hist_action_probs, hist_turn) in enumerate(memory):
                     # Si el jugador que hizo este movimiento ganó → +1
                     # Si perdió → -1, si empate → 0
                     
-                    # value está desde la perspectiva del jugador que acaba de mover
-                    # Necesitamos ajustarlo según quién jugó en ese momento histórico
                     if value == 0:  # Empate
                         hist_outcome = 0
                     elif hist_turn == state.turn:
@@ -131,12 +118,7 @@ class AlphaZero:
                 return returnMemory
                 
     def train(self, memory):
-        """
-        Entrena el modelo con los datos de self-play.
-        
-        Args:
-            memory: Lista de (estado, policy_target, value_target)
-        """
+     
         random.shuffle(memory)
         
         total_policy_loss = 0
@@ -188,15 +170,7 @@ class AlphaZero:
         return avg_policy_loss, avg_value_loss
     
     def learn(self):
-        """
-        Loop principal de entrenamiento AlphaZero.
-        
-        Proceso:
-        1. Self-play: Jugar N partidas con MCTS
-        2. Train: Entrenar con los datos generados
-        3. Guardar modelo
-        4. Repetir
-        """
+      
         for iteration in range(self.args['num_iterations']):
             print(f"\n{'='*60}")
             print(f"ITERACIÓN {iteration + 1}/{self.args['num_iterations']}")
@@ -245,10 +219,3 @@ class AlphaZero:
             
             print(f"✓ Iteración {iteration + 1} completada")
         
-        print(f"\n{'='*60}")
-        print("🎉 ENTRENAMIENTO COMPLETADO")
-        print('='*60)
-        print(f"📊 Todos los logs guardados en: {self.logger.log_dir}/")
-        print(f"   - games_moves.csv: Movimientos legibles")
-        print(f"   - training_data.csv: Datos de entrenamiento")
-        print(f"   - game_stats.csv: Estadísticas por partida")

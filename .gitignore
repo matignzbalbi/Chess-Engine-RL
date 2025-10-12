@@ -1,0 +1,5 @@
+#.gitignore
+*.csv
+venv/
+*.pt
+__pycache__/

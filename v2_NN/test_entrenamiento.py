@@ -4,7 +4,7 @@ from model import create_chess_model
 from alpha_zero import AlphaZero
 
 game = ChessGame()
-model = create_chess_model(game, num_resBlocks=2, num_hidden=32)
+model = create_chess_model(game, num_resBlocks=2, num_hidden=32) 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 args = {

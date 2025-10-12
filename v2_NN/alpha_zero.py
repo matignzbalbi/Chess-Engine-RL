@@ -37,11 +37,9 @@ class AlphaZero:
             action_probs = self.mcts.search(state)
             
             # Guardar: (estado, policy, jugador_actual)
-            # Necesitamos jugador_actual para asignar el outcome correcto después
             memory.append((state.copy(), action_probs, state.turn))
             
             # Seleccionar acción según las probabilidades
-            # Temperatura = 1 al inicio, puede bajar después
             temperature = 1.0
             action_probs_temp = action_probs ** (1 / temperature)
             action_probs_temp /= action_probs_temp.sum()

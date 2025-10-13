@@ -5,9 +5,6 @@ from datetime import datetime
 import json
 
 class GameLogger:
-    """
-    Sistema para guardar partidas y datos de entrenamiento en CSV.
-    """
     
     def __init__(self, log_dir="game_logs"):
         self.log_dir = log_dir
@@ -25,7 +22,6 @@ class GameLogger:
         self._init_files()
     
     def _init_files(self):
-        """Inicializa los archivos CSV con headers si no existen."""
         
         # Archivo de movimientos
         if not os.path.exists(self.moves_file):
@@ -76,14 +72,6 @@ class GameLogger:
             ])
     
     def log_training_data(self, iteration, game_id, training_samples):
-        """
-        Guarda datos de entrenamiento (estados, policies, outcomes).
-        
-        Args:
-            iteration: Número de iteración
-            game_id: ID de la partida
-            training_samples: Lista de (move_num, player, policy, outcome, fen)
-        """
         with open(self.training_file, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             for sample in training_samples:
@@ -103,12 +91,7 @@ class GameLogger:
                 ])
     
     def get_game_summary(self, iteration):
-        """
-        Obtiene un resumen de las partidas de una iteración.
-        
-        Returns:
-            Dict con estadísticas agregadas
-        """
+   
         if not os.path.exists(self.stats_file):
             return {}
         

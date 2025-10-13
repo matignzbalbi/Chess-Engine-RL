@@ -40,7 +40,13 @@ class AlphaZero:
             memory.append((state.copy(), action_probs, state.turn))
             
             # Seleccionar acción según las probabilidades
-            temperature = 1.0
+            if move_count < 15:
+                temperature = 1.0   # exploración inicial
+            elif move_count < 40:
+                temperature = 0.5   # consolidación
+            else:
+                temperature = 0.0   # finales determinísticos
+
             action_probs_temp = action_probs ** (1 / temperature)
             action_probs_temp /= action_probs_temp.sum()
             

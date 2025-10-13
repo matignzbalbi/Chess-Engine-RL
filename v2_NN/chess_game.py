@@ -5,73 +5,69 @@ class ChessGame:
     def __init__(self):
         self.row_count = 8
         self.column_count = 8
-        self.action_size = 4672  
-        self.move_to_index, self.index_to_move = self._create_move_mapping()
-    
-    def _create_move_mapping(self):
-        move_to_index = {}
-        index_to_move = {}
-        
-        idx = 0
-        
-        for from_square in chess.SQUARES:  # 0-63
-            for to_square in chess.SQUARES:  # 0-63
-                if from_square == to_square:
-                    continue  
-                
-                move = chess.Move(from_square, to_square)
-                move_uci = move.uci()
-                
-                # Mapear movimiento base
-                move_to_index[move_uci] = idx
-                index_to_move[idx] = move_uci
-                idx += 1
-                
-                if (from_square in range(48, 56)) or (from_square in range(8, 16)):
-                    # Piezas de promoción: Caballo, Alfil, Torre, Dama
-                    for promotion_piece in [chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN]:
-                        move_promo = chess.Move(from_square, to_square, promotion=promotion_piece)
-                        move_promo_uci = move_promo.uci()
-                        
-                        move_to_index[move_promo_uci] = idx
-                        index_to_move[idx] = move_promo_uci
-                        idx += 1
-        
-        return move_to_index, index_to_move
+        self.action_size = 4672  # Como en AlphaZero
     
     def get_initial_state(self):
-
+        """Retorna el estado inicial del tablero"""
         return chess.Board()
     
     def get_next_state(self, state, action, player):
-     
+        """
+        Aplica una acción al estado y retorna el nuevo estado.
+        
+        Args:
+            state: chess.Board actual
+            action: índice del movimiento en la lista de movimientos legales
+            player: 1 para blancas, -1 para negras (no usado directamente por python-chess)
+            
+        Returns:
+            Nuevo estado después de aplicar la acción
+        """
         move = self.get_move_from_action(state, action)
         new_state = state.copy()
         new_state.push(move)
         return new_state
     
     def get_valid_moves(self, state):
-    
+        """
+        Retorna un vector binario indicando movimientos válidos.
+        
+        Args:
+            state: chess.Board actual
+            
+        Returns:
+            Array numpy binario donde 1 = movimiento válido
+        """
         valid_moves = np.zeros(self.action_size)
         legal_moves = list(state.legal_moves)
         
-        for move in legal_moves:
-            move_uci = move.uci()
-            if move_uci in self.move_to_index:
-                idx = self.move_to_index[move_uci]
-                valid_moves[idx] = 1
+        # Marcar los primeros N movimientos como válidos
+        # (N = número de movimientos legales en esta posición)
+        for i in range(len(legal_moves)):
+            if i < self.action_size:
+                valid_moves[i] = 1
         
         return valid_moves
     
     def check_win(self, state):
-       
+        """
+        Verifica si el juego terminó y quién ganó.
+        
+        Returns:
+            1 si ganan blancas, -1 si ganan negras, 0 si empate/continúa
+        """
         if state.is_checkmate():
             # El jugador actual (cuyo turno es) está en jaque mate
             return -1 if state.turn == chess.WHITE else 1
         return 0
     
     def get_value_and_terminated(self, state, action_taken):
-    
+        """
+        Retorna el valor del estado y si es terminal.
+        
+        Returns:
+            (value, is_terminal): tupla con valor y booleano
+        """
         if state.is_checkmate():
             # El jugador actual (cuyo turno es) está en jaque mate
             value = -1  # Perdió el jugador actual
@@ -92,11 +88,24 @@ class ChessGame:
         return -value
     
     def change_perspective(self, state, player):
-    
+        """
+        Cambia la perspectiva del tablero al jugador dado.
+        En ajedrez con python-chess, el estado ya maneja esto internamente.
+        """
         return state
     
     def get_encoded_state(self, state):
-      
+        """
+        Codifica el estado del tablero como un array numpy.
+        
+        Formato: 12 canales de 8x8
+        - Canales 0-5: Piezas blancas (Peón, Caballo, Alfil, Torre, Dama, Rey)
+        - Canales 6-11: Piezas negras (Peón, Caballo, Alfil, Torre, Dama, Rey)
+        
+        Returns:
+            Array numpy de forma (12, 8, 8) - formato PyTorch (canales primero)
+        """
+        # Formato: (canales, filas, columnas) para PyTorch
         encoded = np.zeros((12, 8, 8), dtype=np.float32)
         
         piece_idx = {
@@ -122,28 +131,33 @@ class ChessGame:
         return encoded
     
     def render(self, state):
-        print(state)
-        print()
+        board = state.board if hasattr(state, "board") else state
+
+        print("\n    a  b  c  d  e  f  g  h")
+        print("  +------------------------+")
+
+        for rank in range(8, 0, -1):
+            row = []
+            for file in range(8):
+                square = chess.square(file, rank - 1)
+                piece = board.piece_at(square)
+                if piece:
+                    symbol = piece.unicode_symbol(invert_color=True)
+                else:
+                    symbol = "·"
+                row.append(symbol)
+            print(f"{rank} | {' '.join(row)} |")
+        print("  +------------------------+")
+        print("    a  b  c  d  e  f  g  h\n")
     
     def get_move_from_action(self, state, action):
-     
-        if action >= len(self.index_to_move) or action < 0:
-            raise ValueError(f"Acción {action} fuera de rango (0-{len(self.index_to_move)-1})")
+ 
+        legal_moves = list(state.legal_moves)
         
-        # Obtener el movimiento UCI del mapeo global
-        move_uci = self.index_to_move[action]
-        
-        # Convertir a objeto chess.Move
-        try:
-            move = chess.Move.from_uci(move_uci)
-        except:
-            raise ValueError(f"No se pudo parsear movimiento: {move_uci}")
-        
-        # Verificar que es legal (seguridad)
-        if move not in state.legal_moves:
-            raise ValueError(
-                f"Movimiento {move_uci} (índice {action}) no es legal en esta posición.\n"
-                f"Movimientos legales: {[m.uci() for m in list(state.legal_moves)[:5]]}..."
+        if action >= len(legal_moves) or action < 0:
+            raise IndexError(
+                f"Acción {action} fuera de rango. "
+                f"Movimientos legales: {len(legal_moves)}"
             )
         
-        return move
+        return legal_moves[action]

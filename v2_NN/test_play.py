@@ -7,7 +7,7 @@ from mcts import MCTS
 # Cargar modelo
 game = ChessGame()
 model = create_chess_model(game, num_resBlocks=2, num_hidden=32)
-model.load_state_dict(torch.load("pytorch_files\model_3.pt"))  
+model.load_state_dict(torch.load("pytorch_files\model_4.pt"))  
 model.eval()
 
 # Crear MCTS
@@ -30,7 +30,7 @@ for move_num in range(1, 300):
             print("Empate")
         break
     
-    USE_TEMPERATURE = True
+    USE_TEMPERATURE = False
     temperature = 0.7
 
     action_probs = mcts.search(state)

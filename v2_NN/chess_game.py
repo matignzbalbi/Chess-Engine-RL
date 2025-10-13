@@ -55,7 +55,6 @@ class ChessGame:
         valid_moves = np.zeros(self.action_size)
         legal_moves = list(state.legal_moves)
         
-        # ⭐ USAR MAPEO GLOBAL: buscar índice del movimiento
         for move in legal_moves:
             move_uci = move.uci()
             if move_uci in self.move_to_index:

@@ -93,8 +93,8 @@ class ChessGame:
     def render(self, state):
         board = state.board if hasattr(state, "board") else state
 
-        print("\n    a  b  c  d  e  f  g  h")
-        print("  +------------------------+")
+        print("\n  a  b  c  d  e  f  g  h")
+        print("  +-----------------+")
 
         for rank in range(8, 0, -1):
             row = []
@@ -107,8 +107,8 @@ class ChessGame:
                     symbol = "·"
                 row.append(symbol)
             print(f"{rank} | {' '.join(row)} |")
-        print("  +------------------------+")
-        print("    a  b  c  d  e  f  g  h\n")
+        print("  +-----------------+")
+        print("  a  b  c  d  e  f  g  h\n")
     
     def get_move_from_action(self, state, action):
  

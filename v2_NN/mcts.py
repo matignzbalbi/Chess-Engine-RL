@@ -38,8 +38,8 @@ class Node:
         if child.visit_count == 0:
             q_value = 0
         else:
-            # Normalizar value_sum (de [-1,1] a [0,1] para compatibilidad)
-            q_value = 1 - ((child.value_sum / child.visit_count) + 1) / 2
+            # Usar el valor promedio directamente, sin invertir ni normalizar
+            q_value = child.value_sum / child.visit_count
         
         # Término de exploración basado en el prior
         exploration = self.args['C'] * child.prior * (math.sqrt(self.visit_count) / (child.visit_count + 1))
@@ -63,11 +63,10 @@ class Node:
     
         self.value_sum += value
         self.visit_count += 1
-        
-        # Invertir valor para el oponente
-        value = self.game.get_opponent_value(value)
+
+        # Invertir el valor una sola vez por cambio de jugador
         if self.parent is not None:
-            self.parent.backpropagate(value)  
+            self.parent.backpropagate(-value)
 
 
 class MCTS:
@@ -99,7 +98,6 @@ class MCTS:
             
             # Verificar si llegamos a un nodo terminal
             value, is_terminal = self.game.get_value_and_terminated(node.state, node.action_taken) # type: ignore
-            value = self.game.get_opponent_value(value)
             
             if not is_terminal:
                 # 2. EXPANSION: Expandir usando la red neuronal

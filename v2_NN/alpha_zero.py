@@ -45,7 +45,7 @@ class AlphaZero:
             elif move_count < 40:
                 temperature = 0.5   # consolidación
             else:
-                temperature = 0.0   # finales 
+                temperature = 0.1   # finales 
 
             action_probs_temp = action_probs ** (1 / temperature)
             action_probs_temp /= action_probs_temp.sum()

@@ -15,11 +15,14 @@ args = {'C': 2, 'num_searches': 100}
 mcts = MCTS(game, args, model)
 
 state = game.get_initial_state()
+move_num = 0
 
-for move_num in range(1, 300):  
+while True:
+    move_num += 1
     print(f"\n--- Movimiento {move_num} ---")
     game.render(state)
     
+    # Verificar si terminó
     value, is_terminal = game.get_value_and_terminated(state, None)
     if is_terminal:
         print("JUEGO TERMINADO")
@@ -29,7 +32,8 @@ for move_num in range(1, 300):
             print("Empate")
         break
     
-    USE_TEMPERATURE = False
+    
+    USE_TEMPERATURE = True
     temperature = 0.7
 
     action_probs = mcts.search(state)

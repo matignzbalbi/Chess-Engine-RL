@@ -34,3 +34,5 @@ iteration,game_id,timestamp,total_moves,winner,termination_reason,unique_positio
 4,3,2025-10-09 14:38:59,191,draw,threefold_repetition,191
 4,4,2025-10-09 14:45:18,241,draw,threefold_repetition,241
 0,0,2025-10-14 23:26:46,15,draw,threefold_repetition,15
+0,0,2025-10-16 19:37:19,143,draw,threefold_repetition,143
+0,0,2025-10-16 20:16:48,135,draw,threefold_repetition,135

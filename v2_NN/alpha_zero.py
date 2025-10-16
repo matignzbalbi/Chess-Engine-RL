@@ -13,16 +13,19 @@ class AlphaZero:
         self.optimizer = optimizer
         self.game = game
         self.args = args
-        self.mcts = MCTS(game, args, model)
         
-        # GPU si tenemos
+        # ✅ PRIMERO: Configurar device y mover modelo
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        print(f"Usando: {self.device}")
+        print(f"Usando device: {self.device}")
         
+        # ✅ DESPUÉS: Crear MCTS (ahora el modelo ya está en GPU)
+        self.mcts = MCTS(game, args, model)
+        
+        # Inicializar logger para guardar datos
         self.logger = GameLogger()
-        print(f"Logs guardándose en: {self.logger.log_dir}/")
-        
+        print(f"📊 Logs guardándose en: {self.logger.log_dir}/")
+            
     def selfPlay(self, iteration=0, game_id=0):
         
         memory = []
@@ -45,7 +48,7 @@ class AlphaZero:
             elif move_count < 40:
                 temperature = 0.5   # consolidación
             else:
-                temperature = 0.0   # finales 
+                temperature = 0.1   # finales 
 
             action_probs_temp = action_probs ** (1 / temperature)
             action_probs_temp /= action_probs_temp.sum()

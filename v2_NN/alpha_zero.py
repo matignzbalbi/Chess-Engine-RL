@@ -13,7 +13,7 @@ class AlphaZero:
         self.optimizer = optimizer
         self.game = game
         self.args = args
-        self.mcts = MCTS(game, args, model, device=self.device)
+        self.mcts = MCTS(game, args, model)
         
         # GPU si tenemos
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

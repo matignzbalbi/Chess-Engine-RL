@@ -20,7 +20,7 @@ class AlphaZero:
         print(f"Usando device: {self.device}")
 
         # Crear MCTS (pasando modelo ya en GPU)
-        self.mcts = MCTS(game, args, model, device=self.device)
+        self.mcts = MCTS(game, args, model, device=self.device) # type: ignore
 
         # Inicializar logger
         self.logger = GameLogger()

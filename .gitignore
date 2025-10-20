@@ -4,3 +4,5 @@ venv/
 *.pt
 __pycache__/
 *.txt
+pytorch_files/
+game_logs/

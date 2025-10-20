@@ -49,7 +49,7 @@ class Node:
             q_value = 0
         else:
             # Normalizar value_sum (de [-1,1] a [0,1] para compatibilidad)
-            q_value = 1 - ((child.value_sum / child.visit_count) + 1) / 2
+            q_value = child.value_sum / child.visit_count
         
         # Término de exploración basado en el prior
         exploration = self.args['C'] * child.prior * (math.sqrt(self.visit_count) / (child.visit_count + 1))
@@ -97,9 +97,8 @@ class Node:
         self.visit_count += 1
         
         # Invertir valor para el oponente
-        value = self.game.get_opponent_value(value)
         if self.parent is not None:
-            self.parent.backpropagate(value)  
+            self.parent.backpropagate(-value)  
 
 
 class MCTS:
@@ -113,10 +112,11 @@ class MCTS:
     - Expande todos los hijos a la vez (no uno por uno)
     """
     
-    def __init__(self, game, args, model):
+    def __init__(self, game, args, model, device=None):
         self.game = game
         self.args = args
         self.model = model
+        self.device = device if device is not None else torch.device("cpu")
         
     @torch.no_grad()
     def search(self, state):
@@ -199,7 +199,7 @@ class MCTS:
         """
         # Codificar el estado
         encoded_state = self.game.get_encoded_state(state)
-        state_tensor = torch.tensor(encoded_state, dtype=torch.float32).unsqueeze(0)
+        state_tensor = torch.tensor(encoded_state, dtype=torch.float32, device=self.device).unsqueeze(0)
         
         # Mover a device del modelo si es necesario
         if hasattr(self.model, 'device'):

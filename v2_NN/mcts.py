@@ -199,11 +199,9 @@ class MCTS:
         """
         # Codificar el estado
         encoded_state = self.game.get_encoded_state(state)
-        state_tensor = torch.tensor(encoded_state, dtype=torch.float32, device=self.device).unsqueeze(0)
         
         # Mover a device del modelo si es necesario
-        if hasattr(self.model, 'device'):
-            state_tensor = state_tensor.to(next(self.model.parameters()).device)
+        state_tensor = torch.as_tensor(encoded_state, dtype=torch.float32, device=self.device).unsqueeze(0)
         
         # Forward pass del modelo
         policy_logits, value = self.model(state_tensor)

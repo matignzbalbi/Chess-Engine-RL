@@ -250,6 +250,13 @@ class MCTS:
         """
         # Codificar estado
         encoded_state = self.game.get_encoded_state(state)
+<<<<<<< HEAD
+        
+        # Mover a device del modelo si es necesario
+        state_tensor = torch.as_tensor(encoded_state, dtype=torch.float32, device=self.device).unsqueeze(0)
+        
+        # Forward pass del modelo
+=======
         state_tensor = torch.tensor(
             encoded_state, 
             dtype=torch.float32, 
@@ -257,6 +264,7 @@ class MCTS:
         ).unsqueeze(0)
         
         # Forward pass
+>>>>>>> 947d27435628b69463f240a55fce7f6b543cc682
         policy_logits, value = self.model(state_tensor)
         
         # Convertir logits a probabilidades

@@ -39,9 +39,9 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 # Argumentos de entrenamiento
 args = {
     'C': 2,                          # Constante de exploración UCB
-    'num_searches': 10,              # Búsquedas MCTS por movimiento
-    'num_iterations': 2,             # Iteraciones de entrenamiento
-    'num_selfPlay_iterations': 2,    # Partidas por iteración
+    'num_searches': 50,              # Búsquedas MCTS por movimiento
+    'num_iterations': 5,             # Iteraciones de entrenamiento
+    'num_selfPlay_iterations': 1,    # Partidas por iteración
     'num_epochs': 1,                 # Épocas de entrenamiento por iteración
     'batch_size': 16                 # Tamaño de batch
 }

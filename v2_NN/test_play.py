@@ -32,7 +32,6 @@ while True:
             print("Empate")
         break
     
-    
     USE_TEMPERATURE = False
     temperature = 0.7
 

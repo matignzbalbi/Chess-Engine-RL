@@ -22,7 +22,6 @@ while True:
     print(f"\n--- Movimiento {move_num} ---")
     game.render(state)
     
-    # Verificar si terminó
     value, is_terminal = game.get_value_and_terminated(state, None)
     if is_terminal:
         print("JUEGO TERMINADO")

@@ -31,7 +31,7 @@ while True:
             print("Empate")
         break
     
-    USE_TEMPERATURE = False
+    USE_TEMPERATURE = True
     temperature = 0.7
 
     action_probs = mcts.search(state)

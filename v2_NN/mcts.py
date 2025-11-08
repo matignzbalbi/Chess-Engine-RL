@@ -61,10 +61,7 @@ class Node:
                     # Crear nuevo estado aplicando el movimiento
                     child_state = self.state.copy()
                     child_state = self.game.get_next_state(child_state, action, 1)
-                    
-                    # ✅ ELIMINADO: change_perspective innecesario
-                    # En ajedrez, state.turn cambia automáticamente después de push()
-
+                
                     # Crear nodo hijo
                     child = Node(
                         game=self.game,
@@ -90,7 +87,6 @@ class Node:
         # Propagar al padre con signo invertido
         if self.parent is not None:
             self.parent.backpropagate(-value)
-
 
 class MCTS:
     
@@ -142,8 +138,7 @@ class MCTS:
                 policy, value = self._evaluate(node.state) # type: ignore
                 node.expand(policy) # type: ignore
   
-            
-            # 4. BACKPROPAGATION: Propagar el valor
+            # 4. BACKPROPAGATION
             node.backpropagate(value) # type: ignore
         
         action_probs = np.zeros(self.game.action_size)

@@ -211,10 +211,14 @@ class AlphaZero:
             summary = self.logger.get_game_summary(iteration)
             if summary:
                 print(f"\nResumen de partidas:")
-                print(f"Blancas: {summary['white_wins']} | "
-                      f"Negras: {summary['black_wins']} | "
-                      f"Empates: {summary['draws']}")
-                print(f"Promedio de movimientos: {summary['avg_moves']:.1f}")
+                print(f"Blancas: {summary['white_wins']} | " # type: ignore
+                      f"Negras: {summary['black_wins']} | " # type: ignore
+                      f"Empates: {summary['draws']}") # type: ignore
+                if summary and summary["avg_moves"] is not None: # type: ignore
+                    print(f"Promedio de movimientos: {summary['avg_moves']:.1f}") # type: ignore
+                else:
+                    print("⚠️ No hay datos para calcular el promedio de movimientos.")
+
 
             # Entrenar modelo
             self.model.train()

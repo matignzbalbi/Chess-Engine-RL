@@ -5,16 +5,6 @@ Adaptado a tu código con python-chess y MCTS
 INSTALACIÓN:
 pip install pygame chess torch
 
-ESTRUCTURA DE ARCHIVOS:
-proyecto/
-  ├── pygame_interface.py (este archivo)
-  ├── chess_game.py
-  ├── model.py
-  ├── mcts.py
-  ├── move_mapping.py
-  └── pytorch_files/
-      └── model_X.pt
-
 USO:
 python pygame_interface.py
 """
@@ -32,9 +22,9 @@ from model import create_chess_model
 from mcts import MCTS
 
 
-# ============================================================================
+# ====================================================================
 # CONSTANTES
-# ============================================================================
+# ====================================================================
 
 # Dimensiones
 WIDTH = 1000
@@ -59,9 +49,9 @@ BUTTON_HOVER = (100, 160, 210)
 FPS = 60
 
 
-# ============================================================================
+# ====================================================================
 # RENDERIZADO DE PIEZAS
-# ============================================================================
+# ====================================================================
 
 def create_piece_surfaces():
     """Carga imágenes de piezas desde la carpeta assets/pieces"""
@@ -90,27 +80,27 @@ def create_piece_surfaces():
     return pieces
 
 
-# ============================================================================
+# ====================================================================
 # CLASE PRINCIPAL
-# ============================================================================
+# ====================================================================
 
 class ChessGUI:
     """Interfaz gráfica principal para el ajedrez"""
-    
+
     def __init__(self, model_path, num_resBlocks=2, num_hidden=32, num_searches=100):
         """Inicializa la GUI"""
         pygame.init()
-        
+
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("AlphaZero Chess - Humano vs Bot RL")
         self.clock = pygame.time.Clock()
-        
+
         # Fuentes
         self.font_title = pygame.font.SysFont('Arial', 32, bold=True)
         self.font_large = pygame.font.SysFont('Arial', 24, bold=True)
         self.font_medium = pygame.font.SysFont('Arial', 18)
         self.font_small = pygame.font.SysFont('Arial', 14)
-        
+
         # Estado del juego
         self.board = chess.Board()
         self.selected_square = None
@@ -120,7 +110,7 @@ class ChessGUI:
         self.flipped = False  # False = blancas abajo, True = negras abajo
         self.game_over = False
         self.ai_thinking = False
-        
+
         # Historial
         self.move_history = []
         self.ai_stats = {
@@ -132,17 +122,16 @@ class ChessGUI:
         self.scroll_speed = 20
         self.max_scroll = 0
 
-        
         # Cargar imágenes de piezas
         print("Generando gráficos de piezas...")
         self.piece_images = create_piece_surfaces()
         print("✓ Piezas renderizadas")
-        
+
         # Cargar modelo
         print(f"\nCargando modelo desde {model_path}...")
         self.game = ChessGame()
         self.model = create_chess_model(self.game, num_resBlocks, num_hidden)
-        
+
         try:
             self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
             self.model.eval()
@@ -150,30 +139,34 @@ class ChessGUI:
         except FileNotFoundError:
             print(f"❌ Error: No se encontró {model_path}")
             sys.exit(1)
-        
+
         # Configurar MCTS
         self.args = {'C': 2, 'num_searches': num_searches}
         self.mcts = MCTS(self.game, self.args, self.model)
         print(f"✓ MCTS configurado con {num_searches} búsquedas\n")
-        
+
         # Botones
         self.buttons = self._create_buttons()
-        
-        print("="*60)
+
+        # Fullscreen state (por seguridad)
+        self.fullscreen = False
+
+        print("=" * 60)
         print("CONTROLES:")
         print("  - Click en pieza para seleccionar")
         print("  - Click en casilla válida para mover")
         print("  - Botones en panel derecho para controles")
-        print("="*60 + "\n")
-    
+        print("=" * 60 + "\n")
+
     def _create_buttons(self):
-        """Define etiquetas de botones (ya no define posiciones fijas)."""
         return {
+            'Fullscreen': {},
+            'Cerrar': {},
             'Nueva Partida': {},
             'Deshacer': {},
             'Girar Tablero': {}
         }
-    
+
     def _draw_board(self):
         """Dibuja el tablero de ajedrez (compatible con giro)."""
         for row in range(8):
@@ -202,8 +195,6 @@ class ChessGUI:
             text = self.font_small.render(col_label, True, (60, 60, 60))
             self.screen.blit(text, (i * SQUARE_SIZE + SQUARE_SIZE - 20, BOARD_SIZE - 20))
 
-
-    
     def _draw_highlights(self):
         """Dibuja highlights de casillas"""
         # Último movimiento
@@ -212,33 +203,33 @@ class ChessGUI:
                 row = 7 - chess.square_rank(square)
                 col = chess.square_file(square)
                 rect = pygame.Rect(col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)
-                s = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE))
+                s = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE), pygame.SRCALPHA)
                 s.set_alpha(128)
                 s.fill(LAST_MOVE_COLOR)
                 self.screen.blit(s, rect)
-        
+
         # Casilla seleccionada
         if self.selected_square is not None:
             row = 7 - chess.square_rank(self.selected_square)
             col = chess.square_file(self.selected_square)
             rect = pygame.Rect(col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)
-            s = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE))
+            s = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE), pygame.SRCALPHA)
             s.set_alpha(180)
             s.fill(SELECTED_COLOR)
             self.screen.blit(s, rect)
-            
+
             # Movimientos legales
             for move in self.legal_moves:
                 row = 7 - chess.square_rank(move.to_square)
                 col = chess.square_file(move.to_square)
                 center = (col * SQUARE_SIZE + SQUARE_SIZE // 2, row * SQUARE_SIZE + SQUARE_SIZE // 2)
-                
+
                 # Círculo para casillas vacías, anillo para capturas
                 if self.board.piece_at(move.to_square):
                     pygame.draw.circle(self.screen, HIGHLIGHT_COLOR, center, SQUARE_SIZE // 2 - 5, 5)
                 else:
                     pygame.draw.circle(self.screen, HIGHLIGHT_COLOR, center, 12)
-    
+
     def _draw_pieces(self):
         """Dibuja las piezas en el tablero, respetando la orientación (flip)."""
         for square in chess.SQUARES:
@@ -267,7 +258,6 @@ class ChessGUI:
                 # Dibujar la pieza en la posición correspondiente
                 self.screen.blit(piece_surface, (x, y))
 
-    
     def _draw_info_panel(self):
         """Dibuja el panel de información con historial a la izquierda y botones a la derecha."""
         panel_x = INFO_PANEL_X
@@ -369,34 +359,62 @@ class ChessGUI:
             button_y += spacing
             self.buttons[label]['rect'] = rect  # ✅ Actualiza posición real del botón
 
+    def _draw_top_buttons(self):
+        """Dibuja los botones superiores (Fullscreen / Cerrar) por encima del resto."""
+        top_button_w = 40
+        top_button_h = 40
+        spacing = 10
+        mouse_pos = pygame.mouse.get_pos()
 
-        # (No necesitamos guardar estos botones porque son redibujados aquí)
+        # Coordenadas en la esquina superior derecha
+        rect_full = pygame.Rect(WIDTH - top_button_w * 2 - spacing * 2, 10, top_button_w, top_button_h)
+        rect_close = pygame.Rect(WIDTH - top_button_w - spacing, 10, top_button_w, top_button_h)
 
-    
+        # Fullscreen button (sin bordes => dibujamos un rect y un marco interior)
+        fs_color = BUTTON_HOVER if rect_full.collidepoint(mouse_pos) else BUTTON_COLOR
+        pygame.draw.rect(self.screen, fs_color, rect_full, border_radius=8)
+        inner = rect_full.inflate(-16, -16)
+        # Marco interior que simula el icono de "maximizar"
+        pygame.draw.rect(self.screen, TEXT_COLOR, inner, 2, border_radius=3)
+        self.buttons['Fullscreen']['rect'] = rect_full
+
+        # Close button (cruz)
+        close_color = (230, 90, 90) if rect_close.collidepoint(mouse_pos) else (200, 70, 70)
+        pygame.draw.rect(self.screen, close_color, rect_close, border_radius=8)
+        # Dibujar cruz
+        padding = 10
+        a = (rect_close.left + padding, rect_close.top + padding)
+        b = (rect_close.right - padding, rect_close.bottom - padding)
+        c = (rect_close.right - padding, rect_close.top + padding)
+        d = (rect_close.left + padding, rect_close.bottom - padding)
+        pygame.draw.line(self.screen, TEXT_COLOR, a, b, 3)
+        pygame.draw.line(self.screen, TEXT_COLOR, c, d, 3)
+        self.buttons['Cerrar']['rect'] = rect_close
+
     def _draw_thinking_indicator(self):
         """Dibuja indicador de pensamiento de Bot RL"""
         if not self.ai_thinking:
             return
-        
+
         # Puntos animados
         center_x = INFO_PANEL_X + INFO_PANEL_WIDTH // 2
         center_y = 180
         num_dots = 8
         radius = 20
-        
+
         for i in range(num_dots):
             angle = (pygame.time.get_ticks() / 100 + i * 45) % 360
             angle_rad = angle * 3.14159 / 180
-            
+
             x = int(center_x + radius * pygame.math.Vector2(1, 0).rotate(angle).x)
             y = int(center_y + radius * pygame.math.Vector2(1, 0).rotate(angle).y)
-            
+
             # Fade basado en posición
             alpha = int(128 + 127 * ((i / num_dots)))
             color = (255, 165, 0)
-            
+
             pygame.draw.circle(self.screen, color, (x, y), 6)
-    
+
     def _get_square_under_mouse(self):
         """Obtiene la casilla bajo el cursor del mouse considerando la orientación."""
         mouse_pos = pygame.mouse.get_pos()
@@ -415,19 +433,19 @@ class ChessGUI:
             row = 7 - row
 
         return chess.square(col, row)
-    
+
     def _handle_square_click(self, square):
         """Maneja el click en una casilla del tablero"""
         if self.game_over or self.ai_thinking or self.board.turn != self.human_color:
             return
-        
+
         # Si no hay casilla seleccionada
         if self.selected_square is None:
             piece = self.board.piece_at(square)
             if piece and piece.color == self.human_color:
                 self.selected_square = square
                 self.legal_moves = [m for m in self.board.legal_moves if m.from_square == square]
-        
+
         # Si hay casilla seleccionada, intentar mover
         else:
             move = None
@@ -435,25 +453,25 @@ class ChessGUI:
                 if m.to_square == square:
                     move = m
                     break
-            
+
             if move:
                 # Aplicar movimiento
                 self.board.push(move)
                 self.last_move = move
-                
+
                 # Agregar al historial
                 move_num = (len(self.board.move_stack) + 1) // 2
                 move_str = f"{move_num}. {move.uci()}"
                 self.move_history.append(move_str)
-                
+
                 # Verificar fin de juego
                 if self.board.is_game_over():
                     self.game_over = True
-                
+
                 # Limpiar selección
                 self.selected_square = None
                 self.legal_moves = []
-            
+
             else:
                 # Deseleccionar o seleccionar otra pieza
                 piece = self.board.piece_at(square)
@@ -463,20 +481,65 @@ class ChessGUI:
                 else:
                     self.selected_square = None
                     self.legal_moves = []
-    
+
     def _handle_button_click(self, pos):
-        """Maneja clicks en botones"""
+        """Maneja clicks en los botones de la interfaz."""
         for label, button_data in self.buttons.items():
-            if button_data['rect'].collidepoint(pos):
-                if label == 'Nueva Partida':
+            rect = button_data.get('rect')
+            if not rect:
+                continue
+
+            if rect.collidepoint(pos):
+
+                # 🔳 Pantalla completa (modo sin bordes)
+                if label == 'Fullscreen':
+                    self.fullscreen = not getattr(self, 'fullscreen', False)
+
+                    if self.fullscreen:
+                        # 🧩 Guardar tamaño actual
+                        self.prev_size = self.screen.get_size()
+
+                        # Obtener tamaño del monitor
+                        info = pygame.display.Info()
+                        self.screen = pygame.display.set_mode(
+                            (info.current_w, info.current_h),
+                            pygame.NOFRAME
+                        )
+                        print("🗖 Modo simulación fullscreen activado")
+                    else:
+                        # 🔙 Restaurar ventana al tamaño original con bordes
+                        self.screen = pygame.display.set_mode(self.prev_size)
+                        print("🗗 Modo ventana restaurado")
+
+                    return True
+
+
+                # ❌ Cerrar el juego
+                elif label == 'Cerrar':
+                    print("Cerrando juego...")
+                    pygame.quit()
+                    sys.exit()
+
+                # 🔁 Nueva partida
+                elif label == 'Nueva Partida':
                     self._new_game()
+                    print("🔄 Nueva partida iniciada")
+                    return True
+
+                # ↩️ Deshacer movimiento
                 elif label == 'Deshacer':
                     self._undo_move()
+                    print("↩️ Movimiento deshecho")
+                    return True
+
+                # ↻ Girar tablero
                 elif label == 'Girar Tablero':
                     self._flip_board()
-                return True
+                    print("↻ Tablero girado")
+                    return True
+
         return False
-    
+
     def _new_game(self):
         """Inicia nueva partida"""
         self.board = chess.Board()
@@ -487,7 +550,7 @@ class ChessGUI:
         self.ai_thinking = False
         self.move_history = []
         self.ai_stats = {'confidence': 0.0, 'think_time': 0.0, 'evaluations': 0}
-    
+
     def _undo_move(self):
         """Deshace los últimos 2 movimientos (humano + Bot RL)"""
         if len(self.board.move_stack) >= 2 and not self.ai_thinking:
@@ -496,53 +559,52 @@ class ChessGUI:
             self.move_history = self.move_history[:-2]
             self.game_over = False
             self.last_move = self.board.peek() if self.board.move_stack else None
-    
+
     def _flip_board(self):
         """Gira el tablero (cambia la orientación visual)"""
         self.flipped = not self.flipped
         print("↻ Tablero girado:", "negras abajo" if self.flipped else "blancas abajo")
 
-    
     def _ai_move(self):
         """La Bot RL hace su movimiento"""
         if self.game_over or self.board.turn == self.human_color or self.ai_thinking:
             return
-        
+
         self.ai_thinking = True
-        
+
         # Ejecutar MCTS
         start_time = time.time()
         action_probs = self.mcts.search(self.board)
-        
+
         # Obtener mejor movimiento
         action = action_probs.argmax()
         move = self.game.get_move_from_action(self.board, action)
-        
+
         # Registrar stats
         self.ai_stats['think_time'] = time.time() - start_time
         self.ai_stats['confidence'] = float(action_probs[action])
-        
+
         # Aplicar movimiento
         self.board.push(move)
         self.last_move = move
-        
+
         # Agregar al historial
         move_num = (len(self.board.move_stack) + 1) // 2
         move_str = f"{move_num}. {move.uci()} (Bot RL)"
         self.move_history.append(move_str)
-        
+
         print(f"Bot RL jugó: {move.uci()} | Confianza: {self.ai_stats['confidence']:.1%} | Tiempo: {self.ai_stats['think_time']:.1f}s")
-        
+
         # Verificar fin de juego
         if self.board.is_game_over():
             self.game_over = True
-        
+
         self.ai_thinking = False
-    
+
     def run(self):
         """Loop principal del juego"""
         running = True
-        self.fullscreen = False  # Por si no estaba en __init__
+        # self.fullscreen ya inicializado en __init__
 
         while running:
             # ==========================
@@ -557,7 +619,8 @@ class ChessGUI:
                     if event.key == pygame.K_F11:
                         self.fullscreen = not self.fullscreen
                         if self.fullscreen:
-                            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                            # Use NOFRAME para evitar cambios de resolución del sistema
+                            self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
                         else:
                             self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -571,7 +634,7 @@ class ChessGUI:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     pos = pygame.mouse.get_pos()
 
-                    # Verificar clicks en botones del panel lateral
+                    # Verificar clicks en botones del panel lateral / top buttons
                     if self._handle_button_click(pos):
                         continue
 
@@ -596,20 +659,18 @@ class ChessGUI:
             self._draw_info_panel()
             self._draw_thinking_indicator()
 
+            # dibujar botones superiores al final para que estén por encima
+            self._draw_top_buttons()
+
             pygame.display.flip()
             self.clock.tick(FPS)
 
         pygame.quit()
 
 
-
-# ============================================================================
-# PUNTO DE ENTRADA
-# ============================================================================
-
-# ============================================================================
+# ====================================================================
 # MENÚ DE DIFICULTAD
-# ============================================================================
+# ====================================================================
 
 def difficulty_menu():
     """Muestra una pantalla inicial para elegir dificultad."""
@@ -678,11 +739,12 @@ def difficulty_menu():
         pygame.display.flip()
         clock.tick(60)
 
+
 def main():
     """Función principal"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("BOT RL CHESS - PYGAME INTERFACE")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     # 1️⃣ Elegir dificultad
     model_path = difficulty_menu()
@@ -710,7 +772,7 @@ def main():
             num_hidden=NUM_HIDDEN,
             num_searches=NUM_SEARCHES
         )
-        print(f"✓ Dificultad seleccionada: {Path(model_path).name.replace('.pt','').replace('_',' ').capitalize()}")
+        print(f"✓ Dificultad seleccionada: {Path(model_path).name.replace('.pt', '').replace('_', ' ').capitalize()}")
         print("✓ GUI lista. Iniciando juego...\n")
         gui.run()
 
@@ -719,6 +781,7 @@ def main():
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

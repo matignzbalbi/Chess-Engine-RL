@@ -217,7 +217,6 @@ class GameLogger:
                 pass
 
 
-
 def format_winner(value, current_player_turn):
 
     if value == 0:
@@ -226,7 +225,6 @@ def format_winner(value, current_player_turn):
         return 'white' if not current_player_turn else 'black'
     else:
         return 'black' if not current_player_turn else 'white'
-
 
 def format_termination(state):
 

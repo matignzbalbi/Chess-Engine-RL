@@ -3,6 +3,7 @@ import os
 import numpy as np
 from datetime import datetime
 import json
+import chess
 
 
 try:
@@ -46,11 +47,11 @@ class GameLogger:
         # Archivo de movimientos
         if not os.path.exists(self.moves_file):
             with open(self.moves_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
                 writer.writerow([
                     'iteration', 'game_id', 'move_number', 'player', 
-                    'move_uci', 'move_confidence', 'board_fen'
+                    'move_algebraic_notation', 'move_confidence', 'board_fen'
                 ])
+
         
         # Archivo de estadísticas
         if not os.path.exists(self.stats_file):
@@ -69,13 +70,35 @@ class GameLogger:
                     'iteration', 'game_id', 'move_number', 'player',
                     'outcome', 'top_5_moves', 'top_5_probs', 'board_fen'
                 ])
-    
+
     def log_game_moves(self, iteration, game_id, moves_history):
-     
+        """
+        moves_history: lista de tuplas con:
+            (move_number, player, move_uci, move_confidence, board_fen)
+        """
         with open(self.moves_file, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
+            
             for move_data in moves_history:
-                writer.writerow([iteration, game_id] + list(move_data))
+                move_number, player, move_uci, move_confidence, board_fen = move_data
+
+                try:
+                    # Crear tablero desde el FEN antes del movimiento
+                    board = chess.Board(board_fen)
+                    
+                    # Convertir de UCI → SAN (notación algebraica)
+                    move = chess.Move.from_uci(move_uci)
+                    move_san = board.san(move)
+                except Exception as e:
+                    # Si algo falla, guardamos el UCI como fallback
+                    move_san = move_uci
+                    print(f"⚠️ Error al convertir UCI '{move_uci}' a algebraico: {e}")
+
+                writer.writerow([
+                    iteration, game_id, move_number, player,
+                    move_san, move_confidence, board_fen
+                ])
+
     
     def log_game_stats(self, iteration, game_id, stats):
  

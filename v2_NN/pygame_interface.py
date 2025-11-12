@@ -8,27 +8,45 @@ pip install pygame chess torch
 USO:
 python pygame_interface.py
 """
-
+import ctypes 
 import pygame
 import chess
 import torch
 import time
 import sys
+import os
 from pathlib import Path
 
-# Importar tus módulos
 from chess_game import ChessGame
 from model import create_chess_model
 from mcts import MCTS
 
 
 # ====================================================================
-# CONSTANTES
+# CONFIGURACIÓN AUTOMÁTICA DE RESOLUCIÓN
 # ====================================================================
 
-# Dimensiones
-WIDTH = 1000
-HEIGHT = 720
+# Windows: pedir píxeles reales (DPI aware) antes de consultar resolución
+if sys.platform == "win32":
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+pygame.init()
+# usar GetSystemMetrics para tener la resolución real del monitor (evita problemas de DPI)
+if sys.platform == "win32":
+    user32 = ctypes.windll.user32
+    screen_w = user32.GetSystemMetrics(0)
+    screen_h = user32.GetSystemMetrics(1)
+else:
+    info = pygame.display.Info()
+    screen_w, screen_h = info.current_w, info.current_h
+
+# set globals
+WIDTH, HEIGHT = screen_w, screen_h
+os.environ['SDL_VIDEO_CENTERED'] = '1'
+
 BOARD_SIZE = 640
 SQUARE_SIZE = BOARD_SIZE // 8
 INFO_PANEL_WIDTH = WIDTH - BOARD_SIZE - 20
@@ -44,8 +62,6 @@ BG_COLOR = (49, 46, 43)
 TEXT_COLOR = (255, 255, 255)
 BUTTON_COLOR = (70, 130, 180)
 BUTTON_HOVER = (100, 160, 210)
-
-# Configuración del juego
 FPS = 60
 
 
@@ -89,9 +105,33 @@ class ChessGUI:
 
     def __init__(self, model_path, num_resBlocks=2, num_hidden=32, num_searches=100):
         """Inicializa la GUI"""
+        global WIDTH, HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_X
         pygame.init()
 
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.monitor_size = (WIDTH, HEIGHT)
+        # dentro de __init__, justo antes de crear la pantalla:
+        # obtener resolución real (por si cambió)
+        if sys.platform == "win32":
+            user32 = ctypes.windll.user32
+            screen_w = user32.GetSystemMetrics(0)
+            screen_h = user32.GetSystemMetrics(1)
+        else:
+            info = pygame.display.Info()
+            screen_w, screen_h = info.current_w, info.current_h
+
+        self.monitor_size = (screen_w, screen_h)
+
+        # asegurarnos que SDL coloque la ventana en 0,0 (evita que quede abajo/derecha)
+        os.environ['SDL_VIDEO_WINDOW_POS'] = "0,0"
+
+        # inicializo en NOFRAME para que cubra pantalla (no maximiza la resolución del sistema)
+        self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
+
+        # actualizar globals usados por el layout
+        WIDTH, HEIGHT = screen_w, screen_h
+        INFO_PANEL_WIDTH = WIDTH - BOARD_SIZE - 20
+        INFO_PANEL_X = BOARD_SIZE + 20
+
         pygame.display.set_caption("AlphaZero Chess - Humano vs Bot RL")
         self.clock = pygame.time.Clock()
 
@@ -149,7 +189,7 @@ class ChessGUI:
         self.buttons = self._create_buttons()
 
         # Fullscreen state (por seguridad)
-        self.fullscreen = False
+        self.fullscreen = True
 
         print("=" * 60)
         print("CONTROLES:")
@@ -167,7 +207,7 @@ class ChessGUI:
             'Girar Tablero': {}
         }
 
-    def _draw_board(self):
+    def _draw_board(self, offset_x=0, offset_y=0):
         """Dibuja el tablero de ajedrez (compatible con giro)."""
         for row in range(8):
             for col in range(8):
@@ -180,49 +220,86 @@ class ChessGUI:
 
                 # Color del cuadrado
                 color = LIGHT_SQUARE if (row + col) % 2 == 0 else DARK_SQUARE
-                rect = pygame.Rect(draw_col * SQUARE_SIZE, draw_row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)
+                rect = pygame.Rect(
+                    offset_x + draw_col * SQUARE_SIZE,
+                    offset_y + draw_row * SQUARE_SIZE,
+                    SQUARE_SIZE,
+                    SQUARE_SIZE
+                )
                 pygame.draw.rect(self.screen, color, rect)
 
-        # Dibujar letras y números del borde
-        for i in range(8):
-            # Números (filas)
-            row_label = str(i + 1) if self.flipped else str(8 - i)
-            text = self.font_small.render(row_label, True, (60, 60, 60))
-            self.screen.blit(text, (5, i * SQUARE_SIZE + 5))
 
-            # Letras (columnas)
-            col_label = chr(104 - i) if self.flipped else chr(97 + i)
-            text = self.font_small.render(col_label, True, (60, 60, 60))
-            self.screen.blit(text, (i * SQUARE_SIZE + SQUARE_SIZE - 20, BOARD_SIZE - 20))
-
-    def _draw_highlights(self):
-        """Dibuja highlights de casillas"""
+    def _draw_highlights(self, offset_x=0, offset_y=0):
+        """Dibuja highlights (último movimiento, selección, y destinos) respetando orientación del tablero."""
+        # ==========================
         # Último movimiento
+        # ==========================
         if self.last_move:
             for square in [self.last_move.from_square, self.last_move.to_square]:
-                row = 7 - chess.square_rank(square)
-                col = chess.square_file(square)
-                rect = pygame.Rect(col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)
+                rank = chess.square_rank(square)
+                file = chess.square_file(square)
+
+                if self.flipped:
+                    draw_row = rank
+                    draw_col = 7 - file
+                else:
+                    draw_row = 7 - rank
+                    draw_col = file
+
+                rect = pygame.Rect(
+                    offset_x + draw_col * SQUARE_SIZE,
+                    offset_y + draw_row * SQUARE_SIZE,
+                    SQUARE_SIZE,
+                    SQUARE_SIZE
+                )
                 s = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE), pygame.SRCALPHA)
                 s.set_alpha(128)
                 s.fill(LAST_MOVE_COLOR)
                 self.screen.blit(s, rect)
 
+        # ==========================
         # Casilla seleccionada
+        # ==========================
         if self.selected_square is not None:
-            row = 7 - chess.square_rank(self.selected_square)
-            col = chess.square_file(self.selected_square)
-            rect = pygame.Rect(col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE)
+            rank = chess.square_rank(self.selected_square)
+            file = chess.square_file(self.selected_square)
+
+            if self.flipped:
+                draw_row = rank
+                draw_col = 7 - file
+            else:
+                draw_row = 7 - rank
+                draw_col = file
+
+            rect = pygame.Rect(
+                offset_x + draw_col * SQUARE_SIZE,
+                offset_y + draw_row * SQUARE_SIZE,
+                SQUARE_SIZE,
+                SQUARE_SIZE
+            )
             s = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE), pygame.SRCALPHA)
             s.set_alpha(180)
             s.fill(SELECTED_COLOR)
             self.screen.blit(s, rect)
 
+            # ==========================
             # Movimientos legales
+            # ==========================
             for move in self.legal_moves:
-                row = 7 - chess.square_rank(move.to_square)
-                col = chess.square_file(move.to_square)
-                center = (col * SQUARE_SIZE + SQUARE_SIZE // 2, row * SQUARE_SIZE + SQUARE_SIZE // 2)
+                rank = chess.square_rank(move.to_square)
+                file = chess.square_file(move.to_square)
+
+                if self.flipped:
+                    draw_row = rank
+                    draw_col = 7 - file
+                else:
+                    draw_row = 7 - rank
+                    draw_col = file
+
+                center = (
+                    offset_x + draw_col * SQUARE_SIZE + SQUARE_SIZE // 2,
+                    offset_y + draw_row * SQUARE_SIZE + SQUARE_SIZE // 2
+                )
 
                 # Círculo para casillas vacías, anillo para capturas
                 if self.board.piece_at(move.to_square):
@@ -230,7 +307,7 @@ class ChessGUI:
                 else:
                     pygame.draw.circle(self.screen, HIGHLIGHT_COLOR, center, 12)
 
-    def _draw_pieces(self):
+    def _draw_pieces(self, offset_x=0, offset_y=0):
         """Dibuja las piezas en el tablero, respetando la orientación (flip)."""
         for square in chess.SQUARES:
             piece = self.board.piece_at(square)
@@ -240,28 +317,70 @@ class ChessGUI:
                     continue
 
                 # Obtener fila y columna de la pieza en el tablero lógico
-                row = chess.square_rank(square)
-                col = chess.square_file(square)
+                rank = chess.square_rank(square)
+                file = chess.square_file(square)
 
-                # Si el tablero está girado, invertir coordenadas
                 if self.flipped:
-                    row = row
-                    col = 7 - col
+                    draw_row = rank
+                    draw_col = 7 - file
                 else:
-                    row = 7 - row
-                    col = col
+                    draw_row = 7 - rank
+                    draw_col = file
+
 
                 # Calcular posición en pantalla
-                x = col * SQUARE_SIZE
-                y = row * SQUARE_SIZE
+                x = offset_x + draw_col * SQUARE_SIZE
+                y = offset_y + draw_row * SQUARE_SIZE
 
                 # Dibujar la pieza en la posición correspondiente
                 self.screen.blit(piece_surface, (x, y))
 
-    def _draw_info_panel(self):
+    def _draw_board_labels(self, offset_x=0, offset_y=0):
+        """
+        Dibuja las letras (a–h) y los números (1–8) con desplazamiento configurable.
+        Permite ajustar los padings por separado para letras y números.
+        """
+
+        # 🔧 Ajustes personalizados (podés modificarlos libremente)
+        # Números (filas)
+        row_padding_x = 4   # desplazamiento horizontal (derecha +)
+        row_padding_y = 2   # desplazamiento vertical (abajo +)
+
+        # Letras (columnas)
+        col_padding_x = -3   # desplazamiento horizontal (derecha +)
+        col_padding_y = -2   # desplazamiento vertical (abajo +)
+
+        for i in range(8):
+            # ==========================
+            # 🧮 Números (filas)
+            # ==========================
+            row_label = str(i + 1) if self.flipped else str(8 - i)
+            text = self.font_small.render(row_label, True, (0, 0, 0))
+            text_rect = text.get_rect()
+            text_rect.topleft = (
+                offset_x + row_padding_x,
+                offset_y + i * SQUARE_SIZE + row_padding_y
+            )
+            self.screen.blit(text, text_rect)
+
+            # ==========================
+            # 🔤 Letras (columnas)
+            # ==========================
+            col_label = chr(104 - i) if self.flipped else chr(97 + i)
+            text = self.font_small.render(col_label, True, (0, 0, 0))
+            text_rect = text.get_rect()
+            text_rect.bottomright = (
+                offset_x + (i + 1) * SQUARE_SIZE + col_padding_x,
+                offset_y + BOARD_SIZE + col_padding_y
+            )
+            self.screen.blit(text, text_rect)
+
+
+    def _draw_info_panel(self, offset_x=0, offset_y=0):
         """Dibuja el panel de información con historial a la izquierda y botones a la derecha."""
-        panel_x = INFO_PANEL_X
-        y = 20
+        panel_x = INFO_PANEL_X + offset_x
+        y = 20 + offset_y
+
 
         # ======================
         # Título
@@ -415,47 +534,66 @@ class ChessGUI:
 
             pygame.draw.circle(self.screen, color, (x, y), 6)
 
-    def _get_square_under_mouse(self):
-        """Obtiene la casilla bajo el cursor del mouse considerando la orientación."""
+    def _get_square_under_mouse(self, offset_x=0, offset_y=0):
+        """Obtiene la casilla bajo el cursor, considerando offset y orientación correcta al girar el tablero."""
         mouse_pos = pygame.mouse.get_pos()
         x, y = mouse_pos
 
+        # Ajustar coordenadas del mouse según desplazamiento del tablero centrado
+        x -= offset_x
+        y -= offset_y
+
+        # Verificar si el click está dentro del tablero visible
         if x < 0 or x >= BOARD_SIZE or y < 0 or y >= BOARD_SIZE:
             return None
 
-        col = x // SQUARE_SIZE
-        row = y // SQUARE_SIZE
+        # Calcular fila y columna dentro del tablero (0–7)
+        col = int(x // SQUARE_SIZE)
+        row = int(y // SQUARE_SIZE)
 
+        # Convertir a coordenadas de chess según orientación
         if self.flipped:
-            col = 7 - col
-            row = 7 - row
+            # En modo girado: la fila y columna están invertidas
+            file = 7 - col
+            rank = row
         else:
-            row = 7 - row
+            # En modo normal: el eje vertical está invertido (arriba = rank 7)
+            file = col
+            rank = 7 - row
 
-        return chess.square(col, row)
+        # Devolver casilla
+        return chess.square(file, rank)
+
 
     def _handle_square_click(self, square):
-        """Maneja el click en una casilla del tablero"""
-        if self.game_over or self.ai_thinking or self.board.turn != self.human_color:
+        """Maneja el click en una casilla del tablero (respeta orientación y color del humano)."""
+        # Evitar acción si no corresponde
+        if self.game_over or self.ai_thinking:
             return
 
+        # Evitar acción si no es el turno del humano
+        if self.board.turn != self.human_color:
+            return
+
+        piece = self.board.piece_at(square)
+
+        # ==========================
         # Si no hay casilla seleccionada
+        # ==========================
         if self.selected_square is None:
-            piece = self.board.piece_at(square)
             if piece and piece.color == self.human_color:
                 self.selected_square = square
                 self.legal_moves = [m for m in self.board.legal_moves if m.from_square == square]
 
-        # Si hay casilla seleccionada, intentar mover
+        # ==========================
+        # Si hay casilla seleccionada
+        # ==========================
         else:
-            move = None
-            for m in self.legal_moves:
-                if m.to_square == square:
-                    move = m
-                    break
+            # Intentar encontrar un movimiento válido hacia la casilla clickeada
+            move = next((m for m in self.legal_moves if m.to_square == square), None)
 
             if move:
-                # Aplicar movimiento
+                # Aplicar el movimiento
                 self.board.push(move)
                 self.last_move = move
 
@@ -468,13 +606,12 @@ class ChessGUI:
                 if self.board.is_game_over():
                     self.game_over = True
 
-                # Limpiar selección
+                # Reset selección
                 self.selected_square = None
                 self.legal_moves = []
 
             else:
-                # Deseleccionar o seleccionar otra pieza
-                piece = self.board.piece_at(square)
+                # Cambiar de selección si clickeamos otra pieza del mismo color
                 if piece and piece.color == self.human_color:
                     self.selected_square = square
                     self.legal_moves = [m for m in self.board.legal_moves if m.from_square == square]
@@ -482,8 +619,10 @@ class ChessGUI:
                     self.selected_square = None
                     self.legal_moves = []
 
+
     def _handle_button_click(self, pos):
         """Maneja clicks en los botones de la interfaz."""
+        global WIDTH, HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_X
         for label, button_data in self.buttons.items():
             rect = button_data.get('rect')
             if not rect:
@@ -491,54 +630,83 @@ class ChessGUI:
 
             if rect.collidepoint(pos):
 
-                # 🔳 Pantalla completa (modo sin bordes)
+                # 🖥️ Alternar pantalla completa real
                 if label == 'Fullscreen':
-                    self.fullscreen = not getattr(self, 'fullscreen', False)
+                    self.fullscreen = not self.fullscreen
 
                     if self.fullscreen:
-                        # 🧩 Guardar tamaño actual
-                        self.prev_size = self.screen.get_size()
+                        # activar "fullscreen" sin cambiar resolución del sistema
+                        if sys.platform == "win32":
+                            user32 = ctypes.windll.user32
+                            # asegurar DPI-aware y obtener medidas reales
+                            try:
+                                ctypes.windll.user32.SetProcessDPIAware()
+                            except Exception:
+                                pass
+                            screen_w = user32.GetSystemMetrics(0)
+                            screen_h = user32.GetSystemMetrics(1)
+                        else:
+                            info = pygame.display.Info()
+                            screen_w, screen_h = info.current_w, info.current_h
 
-                        # Obtener tamaño del monitor
-                        info = pygame.display.Info()
-                        self.screen = pygame.display.set_mode(
-                            (info.current_w, info.current_h),
-                            pygame.NOFRAME
-                        )
-                        print("🗖 Modo simulación fullscreen activado")
+                        os.environ['SDL_VIDEO_WINDOW_POS'] = "0,0"
+                        self.monitor_size = (screen_w, screen_h)
+
+                        # actualizar globals para que el layout se dibuje con las nuevas medidas
+                        WIDTH, HEIGHT = screen_w, screen_h
+                        INFO_PANEL_WIDTH = WIDTH - BOARD_SIZE - 20
+                        INFO_PANEL_X = BOARD_SIZE + 20
+
+                        # crear ventana sin bordes exactamente en 0,0 = cubrir monitor
+                        self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
+                        pygame.display.flip()
+                        print(f"🗖 Pantalla completa simulada exacta ({self.monitor_size})")
+
                     else:
-                        # 🔙 Restaurar ventana al tamaño original con bordes
-                        self.screen = pygame.display.set_mode(self.prev_size)
-                        print("🗗 Modo ventana restaurado")
+                        # volver a modo ventana (ejemplo 1280x720 centrado)
+                        win_w, win_h = 1280, 720
+                        # centrar ventana en monitor
+                        if sys.platform == "win32":
+                            user32 = ctypes.windll.user32
+                            monitor_w = user32.GetSystemMetrics(0)
+                            monitor_h = user32.GetSystemMetrics(1)
+                            pos_x = (monitor_w - win_w) // 2
+                            pos_y = (monitor_h - win_h) // 2
+                            os.environ['SDL_VIDEO_WINDOW_POS'] = f"{pos_x},{pos_y}"
+                        else:
+                            os.environ['SDL_VIDEO_CENTERED'] = '1'
 
+                        # actualizar globals
+                        WIDTH, HEIGHT = win_w, win_h
+                        INFO_PANEL_WIDTH = WIDTH - BOARD_SIZE - 20
+                        INFO_PANEL_X = BOARD_SIZE + 20
+
+                        self.screen = pygame.display.set_mode((win_w, win_h))
+                        pygame.display.flip()
+                        print("🗗 Volvió a modo ventana (1280x720)")
                     return True
 
 
-                # ❌ Cerrar el juego
+
                 elif label == 'Cerrar':
                     print("Cerrando juego...")
                     pygame.quit()
                     sys.exit()
 
-                # 🔁 Nueva partida
                 elif label == 'Nueva Partida':
                     self._new_game()
-                    print("🔄 Nueva partida iniciada")
                     return True
 
-                # ↩️ Deshacer movimiento
                 elif label == 'Deshacer':
                     self._undo_move()
-                    print("↩️ Movimiento deshecho")
                     return True
 
-                # ↻ Girar tablero
                 elif label == 'Girar Tablero':
                     self._flip_board()
-                    print("↻ Tablero girado")
                     return True
 
         return False
+
 
     def _new_game(self):
         """Inicia nueva partida"""
@@ -561,9 +729,21 @@ class ChessGUI:
             self.last_move = self.board.peek() if self.board.move_stack else None
 
     def _flip_board(self):
-        """Gira el tablero (cambia la orientación visual)"""
+        """Gira el tablero y cambia el color del jugador humano automáticamente."""
+        # Cambiar orientación visual
         self.flipped = not self.flipped
-        print("↻ Tablero girado:", "negras abajo" if self.flipped else "blancas abajo")
+
+        # Cambiar el color del jugador humano
+        if self.flipped:
+            self.human_color = chess.BLACK
+            print("↻ Tablero girado: negras abajo (jugás con negras)")
+        else:
+            self.human_color = chess.WHITE
+            print("↻ Tablero girado: blancas abajo (jugás con blancas)")
+
+        # Reiniciar selección y movimientos legales
+        self.selected_square = None
+        self.legal_moves = []
 
     def _ai_move(self):
         """La Bot RL hace su movimiento"""
@@ -602,9 +782,10 @@ class ChessGUI:
         self.ai_thinking = False
 
     def run(self):
+        global WIDTH, HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_X
         """Loop principal del juego"""
         running = True
-        # self.fullscreen ya inicializado en __init__
+        self.monitor_size = (WIDTH, HEIGHT)  # evita errores antes de entrar a fullscreen
 
         while running:
             # ==========================
@@ -619,14 +800,53 @@ class ChessGUI:
                     if event.key == pygame.K_F11:
                         self.fullscreen = not self.fullscreen
                         if self.fullscreen:
-                            # Use NOFRAME para evitar cambios de resolución del sistema
-                            self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
+                            # entrar a NOFRAME fullscreen (igual que en el boton)
+                            if sys.platform == "win32":
+                                try:
+                                    ctypes.windll.user32.SetProcessDPIAware()
+                                except Exception:
+                                    pass
+                                user32 = ctypes.windll.user32
+                                screen_w = user32.GetSystemMetrics(0)
+                                screen_h = user32.GetSystemMetrics(1)
+                            else:
+                                info = pygame.display.Info()
+                                screen_w, screen_h = info.current_w, info.current_h
+
+                            os.environ['SDL_VIDEO_WINDOW_POS'] = "0,0"
+                            self.monitor_size = (screen_w, screen_h)
+                            WIDTH, HEIGHT = screen_w, screen_h
+                            INFO_PANEL_WIDTH = WIDTH - BOARD_SIZE - 20
+                            INFO_PANEL_X = BOARD_SIZE + 20
+
+                            self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
+                            pygame.display.flip()
+                            print(f"🗖 Pantalla completa simulada ({self.monitor_size})")
+
                         else:
-                            self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+                            # salir a ventana centrada 1280x720
+                            win_w, win_h = 1280, 720
+                            if sys.platform == "win32":
+                                user32 = ctypes.windll.user32
+                                pos_x = (user32.GetSystemMetrics(0) - win_w) // 2
+                                pos_y = (user32.GetSystemMetrics(1) - win_h) // 2
+                                os.environ['SDL_VIDEO_WINDOW_POS'] = f"{pos_x},{pos_y}"
+                            else:
+                                os.environ['SDL_VIDEO_CENTERED'] = '1'
+
+
+                            WIDTH, HEIGHT = win_w, win_h
+                            INFO_PANEL_WIDTH = WIDTH - BOARD_SIZE - 20
+                            INFO_PANEL_X = BOARD_SIZE + 20
+
+                            self.screen = pygame.display.set_mode((win_w, win_h))
+                            pygame.display.flip()
+                            print("🗗 Modo ventana restaurado")
+
+
 
                 # 🖱️ Scroll con la rueda del mouse
                 elif event.type == pygame.MOUSEWHEEL:
-                    # event.y = 1 (rueda arriba) o -1 (rueda abajo)
                     self.scroll_offset -= event.y * self.scroll_speed
                     self.scroll_offset = max(0, min(self.scroll_offset, self.max_scroll))
 
@@ -634,38 +854,51 @@ class ChessGUI:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     pos = pygame.mouse.get_pos()
 
-                    # Verificar clicks en botones del panel lateral / top buttons
+                    # Verificar clicks en botones
                     if self._handle_button_click(pos):
                         continue
 
-                    # Click en el tablero de ajedrez
-                    square = self._get_square_under_mouse()
+                    # Click en el tablero (ajustado con offset)
+                    square = self._get_square_under_mouse(offset_x, offset_y)
                     if square is not None:
                         self._handle_square_click(square)
 
+
             # ==========================
-            # 🧠 Movimiento de la Bot RL
+            # 🧠 Movimiento del Bot RL
             # ==========================
             if not self.game_over and self.board.turn != self.human_color and not self.ai_thinking:
                 self._ai_move()
 
             # ==========================
-            # 🖼️ RENDERIZADO
+            # 🎨 Renderizado
             # ==========================
             self.screen.fill(BG_COLOR)
-            self._draw_board()
-            self._draw_highlights()
-            self._draw_pieces()
-            self._draw_info_panel()
-            self._draw_thinking_indicator()
 
-            # dibujar botones superiores al final para que estén por encima
+            # Calcular offset para centrar todo en fullscreen
+            if self.fullscreen:
+                total_width = BOARD_SIZE + INFO_PANEL_WIDTH + 20
+                total_height = BOARD_SIZE
+                offset_x = (WIDTH - total_width) // 2
+                offset_y = (HEIGHT - total_height) // 2
+            else:
+                offset_x = offset_y = 0
+
+            # Dibujar tablero y panel con desplazamiento
+            self._draw_board(offset_x, offset_y)
+            self._draw_highlights(offset_x, offset_y)
+            self._draw_pieces(offset_x, offset_y)
+            self._draw_board_labels(offset_x, offset_y)
+            self._draw_info_panel(offset_x, offset_y)
+            self._draw_thinking_indicator()
             self._draw_top_buttons()
+
 
             pygame.display.flip()
             self.clock.tick(FPS)
 
         pygame.quit()
+
 
 
 # ====================================================================

@@ -476,10 +476,9 @@ class ChessGUI:
             text_rect = text.get_rect(center=rect.center)
             self.screen.blit(text, text_rect)
             button_y += spacing
-            self.buttons[label]['rect'] = rect  # ✅ Actualiza posición real del botón
+            self.buttons[label]['rect'] = rect  
 
     def _draw_top_buttons(self):
-        """Dibuja los botones superiores (Fullscreen / Cerrar) por encima del resto."""
         top_button_w = 40
         top_button_h = 40
         spacing = 10
@@ -511,7 +510,6 @@ class ChessGUI:
         self.buttons['Cerrar']['rect'] = rect_close
 
     def _draw_thinking_indicator(self):
-        """Dibuja indicador de pensamiento de Bot RL"""
         if not self.ai_thinking:
             return
 
@@ -535,7 +533,6 @@ class ChessGUI:
             pygame.draw.circle(self.screen, color, (x, y), 6)
 
     def _get_square_under_mouse(self, offset_x=0, offset_y=0):
-        """Obtiene la casilla bajo el cursor, considerando offset y orientación correcta al girar el tablero."""
         mouse_pos = pygame.mouse.get_pos()
         x, y = mouse_pos
 
@@ -566,7 +563,6 @@ class ChessGUI:
 
 
     def _handle_square_click(self, square):
-        """Maneja el click en una casilla del tablero (respeta orientación y color del humano)."""
         # Evitar acción si no corresponde
         if self.game_over or self.ai_thinking:
             return
@@ -577,9 +573,7 @@ class ChessGUI:
 
         piece = self.board.piece_at(square)
 
-        # ==========================
-        # Si no hay casilla seleccionada
-        # ==========================
+
         if self.selected_square is None:
             if piece and piece.color == self.human_color:
                 self.selected_square = square
@@ -621,7 +615,6 @@ class ChessGUI:
 
 
     def _handle_button_click(self, pos):
-        """Maneja clicks en los botones de la interfaz."""
         global WIDTH, HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_X
         for label, button_data in self.buttons.items():
             rect = button_data.get('rect')
@@ -709,7 +702,6 @@ class ChessGUI:
 
 
     def _new_game(self):
-        """Inicia nueva partida"""
         self.board = chess.Board()
         self.selected_square = None
         self.legal_moves = []
@@ -720,7 +712,6 @@ class ChessGUI:
         self.ai_stats = {'confidence': 0.0, 'think_time': 0.0, 'evaluations': 0}
 
     def _undo_move(self):
-        """Deshace los últimos 2 movimientos (humano + Bot RL)"""
         if len(self.board.move_stack) >= 2 and not self.ai_thinking:
             self.board.pop()
             self.board.pop()
@@ -729,24 +720,22 @@ class ChessGUI:
             self.last_move = self.board.peek() if self.board.move_stack else None
 
     def _flip_board(self):
-        """Gira el tablero y cambia el color del jugador humano automáticamente."""
         # Cambiar orientación visual
         self.flipped = not self.flipped
 
         # Cambiar el color del jugador humano
         if self.flipped:
             self.human_color = chess.BLACK
-            print("↻ Tablero girado: negras abajo (jugás con negras)")
+            print("Tablero girado: negras abajo (jugás con negras)")
         else:
             self.human_color = chess.WHITE
-            print("↻ Tablero girado: blancas abajo (jugás con blancas)")
+            print("Tablero girado: blancas abajo (jugás con blancas)")
 
         # Reiniciar selección y movimientos legales
         self.selected_square = None
         self.legal_moves = []
 
     def _ai_move(self):
-        """La Bot RL hace su movimiento"""
         if self.game_over or self.board.turn == self.human_color or self.ai_thinking:
             return
 
@@ -783,19 +772,15 @@ class ChessGUI:
 
     def run(self):
         global WIDTH, HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_X
-        """Loop principal del juego"""
         running = True
         self.monitor_size = (WIDTH, HEIGHT)  # evita errores antes de entrar a fullscreen
 
         while running:
-            # ==========================
-            # 🎮 EVENTOS
-            # ==========================
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
 
-                # 🔁 Alternar pantalla completa (F11)
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_F11:
                         self.fullscreen = not self.fullscreen
@@ -821,7 +806,7 @@ class ChessGUI:
 
                             self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
                             pygame.display.flip()
-                            print(f"🗖 Pantalla completa simulada ({self.monitor_size})")
+                            print(f"Pantalla completa simulada ({self.monitor_size})")
 
                         else:
                             # salir a ventana centrada 1280x720
@@ -841,20 +826,16 @@ class ChessGUI:
 
                             self.screen = pygame.display.set_mode((win_w, win_h))
                             pygame.display.flip()
-                            print("🗗 Modo ventana restaurado")
+                            print("Modo ventana restaurado")
 
 
-
-                # 🖱️ Scroll con la rueda del mouse
                 elif event.type == pygame.MOUSEWHEEL:
                     self.scroll_offset -= event.y * self.scroll_speed
                     self.scroll_offset = max(0, min(self.scroll_offset, self.max_scroll))
 
-                # 🖱️ Click del mouse
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     pos = pygame.mouse.get_pos()
 
-                    # Verificar clicks en botones
                     if self._handle_button_click(pos):
                         continue
 
@@ -864,18 +845,12 @@ class ChessGUI:
                         self._handle_square_click(square)
 
 
-            # ==========================
-            # 🧠 Movimiento del Bot RL
-            # ==========================
             if not self.game_over and self.board.turn != self.human_color and not self.ai_thinking:
                 self._ai_move()
 
-            # ==========================
-            # 🎨 Renderizado
-            # ==========================
+  
             self.screen.fill(BG_COLOR)
 
-            # Calcular offset para centrar todo en fullscreen
             if self.fullscreen:
                 total_width = BOARD_SIZE + INFO_PANEL_WIDTH + 20
                 total_height = BOARD_SIZE
@@ -884,7 +859,6 @@ class ChessGUI:
             else:
                 offset_x = offset_y = 0
 
-            # Dibujar tablero y panel con desplazamiento
             self._draw_board(offset_x, offset_y)
             self._draw_highlights(offset_x, offset_y)
             self._draw_pieces(offset_x, offset_y)
@@ -900,13 +874,7 @@ class ChessGUI:
         pygame.quit()
 
 
-
-# ====================================================================
-# MENÚ DE DIFICULTAD
-# ====================================================================
-
 def difficulty_menu():
-    """Muestra una pantalla inicial para elegir dificultad."""
     pygame.init()
     screen = pygame.display.set_mode((600, 400))
     pygame.display.set_caption("Seleccionar dificultad - Bot RL")
@@ -979,25 +947,23 @@ def main():
     print("BOT RL CHESS - PYGAME INTERFACE")
     print("=" * 60 + "\n")
 
-    # 1️⃣ Elegir dificultad
     model_path = difficulty_menu()
 
-    # 2️⃣ Parámetros de red según modelo
     NUM_RESBLOCKS = 2
     NUM_HIDDEN = 32
     NUM_SEARCHES = 100
 
-    # 3️⃣ Verificar modelo seleccionado
+    # Verificar modelo seleccionado
     if not Path(model_path).exists():
-        print(f"❌ Error: No se encontró el modelo en '{model_path}'")
+        print(f"Error: No se encontró el modelo en '{model_path}'")
         sys.exit(1)
 
-    # 4️⃣ Ajustar búsquedas según hardware
+    # Ajustar búsquedas según hardware
     if not torch.cuda.is_available():
-        print("⚠️ GPU no detectada. Reduciendo búsquedas MCTS para mejor rendimiento")
+        print("GPU no detectada. Reduciendo búsquedas MCTS para mejor rendimiento")
         NUM_SEARCHES = 50
 
-    # 5️⃣ Crear e iniciar GUI
+    # Crear e iniciar GUI
     try:
         gui = ChessGUI(
             model_path=model_path,
@@ -1010,7 +976,7 @@ def main():
         gui.run()
 
     except Exception as e:
-        print(f"\n❌ Error fatal: {e}")
+        print(f"\nError fatal: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

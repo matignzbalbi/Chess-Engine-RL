@@ -4,39 +4,19 @@ import numpy as np
 from datetime import datetime
 import chess
 
-# Intentar importar base de datos (Supabase opcional)
-try:
-    from database import ChessDatabase
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-    print("⚠️  Módulo 'database' no encontrado. Se usará solo almacenamiento local.")
-
 
 class GameLogger:
     """Clase para registrar partidas, datos de entrenamiento y estadísticas."""
 
-    def __init__(self, log_dir: str = "game_logs", use_database: bool = True) -> None:
+    def __init__(self, log_dir: str = "game_logs") -> None:
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
 
-        # Archivos CSV (backup local)
+        # Archivos CSV (almacenamiento local)
         self.training_file = os.path.join(log_dir, "training_data.csv")
         self.stats_file = os.path.join(log_dir, "game_stats.csv")
 
         self._init_files()
-
-        # Conexión opcional a Supabase
-        self.use_database = use_database and SUPABASE_AVAILABLE
-        self.db = None
-
-        if self.use_database:
-            try:
-                self.db = ChessDatabase()
-                print("✅ GameLogger conectado a Supabase")
-            except Exception as e:
-                print(f"❌ No se pudo conectar a Supabase: {e}")
-                self.use_database = False
 
     # ---------------------------------------------------------------------
     def _init_files(self) -> None:
@@ -63,7 +43,7 @@ class GameLogger:
 
     # ---------------------------------------------------------------------
     def log_game_stats(self, iteration: int, game_id: str, stats: dict) -> None:
-        """Guarda estadísticas de una partida en CSV y/o Supabase"""
+        """Guarda estadísticas de una partida en CSV"""
 
         # Guardar en CSV
         with open(self.stats_file, "a", newline="", encoding="utf-8") as f:
@@ -77,14 +57,6 @@ class GameLogger:
                 stats.get("termination_reason", "unknown"),
                 stats.get("unique_positions", 0)
             ])
-
-        # Guardar en Supabase
-        if self.use_database and self.db:
-            try:
-                self.db.insert_game_stat(iteration, game_id, stats)
-            except Exception as e:
-                print(f"⚠️ Error al guardar en Supabase: {e}")
-                print("   → Datos guardados en CSV como respaldo.")
 
     # ---------------------------------------------------------------------
     def log_training_data(self, iteration: int, game_id: str, training_samples: list, game_instance) -> None:
@@ -130,17 +102,7 @@ class GameLogger:
 
     # ---------------------------------------------------------------------
     def get_game_summary(self, iteration: int) -> dict:
-        """Obtiene resumen de partidas de una iteración."""
-        if self.use_database and self.db:
-            try:
-                summary = self.db.get_iteration_summary(iteration)
-                if summary:
-                    return summary
-            except Exception as e:
-                print(f"⚠️ Error al leer desde Supabase: {e}")
-                print("   → Leyendo desde CSV...")
-
-        # Fallback: leer desde CSV
+        """Obtiene resumen de partidas de una iteración desde CSV"""
         return self._get_summary_from_csv(iteration)
 
     # ---------------------------------------------------------------------
@@ -201,34 +163,10 @@ class GameLogger:
                     stats.get("unique_positions", 0),
                 ])
 
-        # Guardar en Supabase
-        if self.use_database and self.db:
-            try:
-                batch_data = [
-                    (
-                        iteration,
-                        game_id,
-                        stats.get("total_moves", 0),
-                        stats.get("winner", "draw"),
-                        stats.get("termination_reason", "unknown"),
-                        stats.get("unique_positions", 0),
-                    )
-                    for game_id, stats in stats_list
-                ]
-                self.db.insert_game_stats_batch(batch_data)
-            except Exception as e:
-                print(f"⚠️ Error al guardar batch en Supabase: {e}")
-                print("   → Datos guardados en CSV como respaldo.")
-
     # ---------------------------------------------------------------------
     def close(self) -> None:
-        """Cierra conexiones abiertas."""
-        if self.use_database and self.db:
-            try:
-                self.db.close()
-                print("✅ Conexión a Supabase cerrada correctamente.")
-            except Exception:
-                pass
+        """Cierra conexiones abiertas (no hace nada sin base de datos)."""
+        pass
 
 
 # ---------------------------------------------------------------------

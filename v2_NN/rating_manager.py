@@ -1,5 +1,4 @@
-# rating_manager.py
-# Requiere: pip install glicko2
+
 from datetime import datetime
 import csv
 import os
@@ -24,8 +23,7 @@ class RatingManager:
         self.use_glicko = use_glicko and HAS_GLICKO
         self.initial_rating = initial_rating
         self.storage_path = storage_path
-        # in-memory structures
-        # for Glicko, store GlickoPlayer objects
+
         self.players = {}  # checkpoint -> player object or dict for ELO
         # load existing ratings if present
         if os.path.exists(self.storage_path):
@@ -37,7 +35,7 @@ class RatingManager:
             for r in reader:
                 ck = r["checkpoint"]
                 if self.use_glicko:
-                    p = GlickoPlayer(rating=float(r["rating"]), rd=float(r.get("rd", 350.0)))
+                    p = GlickoPlayer(rating=float(r["rating"]), rd=float(r.get("rd", 350.0))) # type: ignore
                     self.players[ck] = p
                 else:
                     self.players[ck] = {"rating": float(r["rating"]), "games": int(r.get("games_played", 0))}
@@ -52,12 +50,7 @@ class RatingManager:
             self.players[checkpoint] = {"rating": self.initial_rating, "games": 0}
 
     def record_match_result(self, a_ckpt, b_ckpt, score_a):
-        """
-        score_a: 1 (A wins), 0.5 draw, 0 (A loses)
-        This updates instantly for ELO.
-        For Glicko-2 we recommend collecting all matches in a rating period, but this function
-        does a simple per-match update for convenience (fine if we run many matches).
-        """
+
         self.ensure_player(a_ckpt)
         self.ensure_player(b_ckpt)
 

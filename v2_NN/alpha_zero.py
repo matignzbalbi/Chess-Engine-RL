@@ -7,6 +7,11 @@ from tqdm import tqdm
 import os
 import chess
 from game_logger import GameLogger, format_winner, format_termination
+import shutil
+import tempfile
+from pathlib import Path
+import json
+from datetime import datetime
 
 class AlphaZero:
     def __init__(self, model, optimizer, game, args):
@@ -20,39 +25,254 @@ class AlphaZero:
         self.model.to(self.device)
         print(f"Usando device: {self.device}")
 
-        # MCTS (se asume que MCTS acepta device)
+        # MCTS
         self.mcts = MCTS(game, args, model, device=self.device)
 
         # Logger
         self.logger = GameLogger()
         print(f"Logs guardándose en: {self.logger.log_dir}/")
+        
+        # ✨ NUEVO: Verificar directorio de checkpoints al inicio
+        self.checkpoint_dir = "pytorch_files"
+        self._verify_checkpoint_directory()
+
+
+    def _verify_checkpoint_directory(self):
+ 
+        try:
+            # Crear directorio si no existe
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
+            
+            # Verificar escritura con archivo temporal
+            test_file = os.path.join(self.checkpoint_dir, ".write_test")
+            with open(test_file, 'w') as f:
+                f.write("test")
+            os.remove(test_file)
+            
+            print(f"Directorio de checkpoints verificado: {self.checkpoint_dir}/")
+            
+        except PermissionError:
+            print(f"ERROR: Sin permisos de escritura en {self.checkpoint_dir}/")
+            raise
+        except OSError as e:
+            print(f"ERROR: No se puede crear directorio {self.checkpoint_dir}/: {e}")
+            raise
+    
+    def _get_available_disk_space(self, path="."):
+        try:
+            stat = shutil.disk_usage(path)
+            return stat.free / (1024 ** 2)  # Convertir a MB
+        except Exception:
+            return float('inf')  # Si falla, asumir espacio infinito
+    
+    def _estimate_checkpoint_size(self):
+        try:
+            # Calcular tamaño del modelo
+            model_params = sum(p.numel() * 4 for p in self.model.parameters())  # 4 bytes por float32
+            
+            # Calcular tamaño del optimizer (aproximado, depende del tipo)
+            optimizer_params = model_params * 2  # Adam guarda 2 momentos por parámetro
+            
+            total_bytes = model_params + optimizer_params
+            total_mb = total_bytes / (1024 ** 2)
+            
+            # Agregar 20% de margen para metadatos y JSON
+            return total_mb * 1.2
+            
+        except Exception:
+            return 100  # Fallback conservador: 100 MB
+    
+    def _safe_save_checkpoint(self, obj, filepath, description="checkpoint"):
+     
+        # Paso 1: Verificar espacio en disco
+        estimated_size = self._estimate_checkpoint_size()
+        available_space = self._get_available_disk_space(self.checkpoint_dir)
+        
+        if available_space < estimated_size * 2:  # Requerir 2x el tamaño (seguridad)
+            print(f"⚠️  ADVERTENCIA: Poco espacio en disco")
+            print(f"   Disponible: {available_space:.1f} MB")
+            print(f"   Necesario: {estimated_size * 2:.1f} MB")
+            print(f"   NO se guardó {description}")
+            return False
+        
+        try:
+            # Paso 2: Crear backup si el archivo ya existe
+            backup_path = None
+            if os.path.exists(filepath):
+                backup_path = filepath + ".backup"
+                try:
+                    shutil.copy2(filepath, backup_path)
+                except Exception as e:
+                    print(f"No se pudo crear backup de {filepath}: {e}")
+                    # Continuar de todas formas
+            
+            # Paso 3: Guardar en archivo temporal (guardado atómico)
+            temp_fd, temp_path = tempfile.mkstemp(
+                suffix='.pt',
+                dir=self.checkpoint_dir,
+                prefix='.tmp_'
+            )
+            os.close(temp_fd)  # Cerrar el file descriptor
+            
+            # Guardar en temporal
+            torch.save(obj, temp_path)
+            
+            # Paso 4: Verificar que el archivo temporal se escribió correctamente
+            if not os.path.exists(temp_path):
+                raise IOError(f"Archivo temporal {temp_path} no se creó")
+            
+            temp_size = os.path.getsize(temp_path)
+            if temp_size < 1000:  # Menos de 1KB es sospechoso
+                raise IOError(f"Archivo temporal muy pequeño: {temp_size} bytes")
+            
+            # Paso 5: Mover archivo temporal al destino final (operación atómica)
+            shutil.move(temp_path, filepath)
+            
+            # Paso 6: Verificar que el archivo final existe
+            if not os.path.exists(filepath):
+                raise IOError(f"Archivo final {filepath} no existe después de mover")
+            
+            # Paso 7: Eliminar backup si todo salió bien
+            if backup_path and os.path.exists(backup_path):
+                try:
+                    os.remove(backup_path)
+                except Exception:
+                    pass  # No crítico si falla
+            
+            return True
+            
+        except IOError as e:
+            print(f"ERROR de E/S al guardar {description}: {e}")
+            
+            # Restaurar desde backup si existe
+            if backup_path and os.path.exists(backup_path):
+                try:
+                    shutil.copy2(backup_path, filepath)
+                    print(f"✅ Restaurado desde backup: {filepath}")
+                except Exception as restore_err:
+                    print(f"No se pudo restaurar backup: {restore_err}")
+            
+            return False
+            
+        except RuntimeError as e:
+            print(f"ERROR de PyTorch al guardar {description}: {e}")
+            return False
+            
+        except MemoryError:
+            print(f"ERROR: Sin memoria para guardar {description}")
+            return False
+            
+        except Exception as e:
+            print(f"ERROR inesperado al guardar {description}: {type(e).__name__}: {e}")
+            return False
+        
+        finally:
+            # Limpiar archivos temporales si quedaron
+            try:
+                if 'temp_path' in locals() and os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception:
+                pass
+    
+    def _save_checkpoint_bundle(self, iteration, difficulty_level=None):
+  
+        success_count = 0
+        total_saves = 3  # modelo + optimizer + config
+        
+        # Determinar nombres de archivos
+        if difficulty_level:
+            base_name = f"bot_{difficulty_level}"
+            print(f"\n🎮 Guardando checkpoint de nivel: {difficulty_level.upper()}")
+        else:
+            base_name = f"model_{iteration}"
+            print(f"\nGuardando checkpoint de iteración {iteration}")
+        
+        model_path = os.path.join(self.checkpoint_dir, f"{base_name}.pt")
+        optimizer_path = os.path.join(self.checkpoint_dir, f"{base_name}_optimizer.pt")
+        config_path = os.path.join(self.checkpoint_dir, f"{base_name}_config.json")
+        
+        # Guardar modelo
+        print(f"Guardando modelo")
+        if self._safe_save_checkpoint(self.model.state_dict(), model_path, f"modelo {base_name}"):
+            size_mb = os.path.getsize(model_path) / (1024 ** 2)
+            print(f"   ✅ Modelo guardado ({size_mb:.1f} MB)")
+            success_count += 1
+        else:
+            print(f"Falló guardado de modelo")
+        
+        # Guardar optimizer
+        print(f"Guardando optimizer")
+        if self._safe_save_checkpoint(self.optimizer.state_dict(), optimizer_path, f"optimizer {base_name}"):
+            size_mb = os.path.getsize(optimizer_path) / (1024 ** 2)
+            print(f"   ✅ Optimizer guardado ({size_mb:.1f} MB)")
+            success_count += 1
+        else:
+            print(f"Falló guardado de optimizer")
+        
+        # Guardar configuración (JSON)
+        print(f"Guardando configuración")
+        try:
+            config = {
+                'iteration': iteration,
+                'num_resBlocks': len(self.model.backBone),
+                'num_hidden': self.model.startBlock[0].out_channels,
+                'action_size': self.game.action_size,
+                'training_games': (iteration + 1) * self.args['num_selfPlay_iterations'],
+                'timestamp': datetime.now().isoformat(),
+                'device': str(self.device),
+                'args': self.args
+            }
+            
+            if difficulty_level:
+                config['level'] = difficulty_level
+                config['recommended_elo'] = {
+                    'principiante': '600-800',
+                    'intermedio': '1000-1200',
+                    'avanzado': '1400-1600'
+                }.get(difficulty_level, 'unknown')
+            
+            # Guardar JSON con guardado atómico también
+            temp_config = config_path + ".tmp"
+            with open(temp_config, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            shutil.move(temp_config, config_path)
+            print(f"Configuración guardada")
+            success_count += 1
+            
+        except Exception as e:
+            print(f"Falló guardado de configuración: {e}")
+        
+        # Resultado final
+        if success_count == total_saves:
+            print(f"Checkpoint completo guardado exitosamente")
+            if difficulty_level:
+                print(f"Bot {difficulty_level} listo para usar")
+            return True
+        elif success_count > 0:
+            print(f"Checkpoint guardado parcialmente ({success_count}/{total_saves})")
+            return False
+        else:
+            print(f"Falló completamente el guardado del checkpoint")
+            return False
+
+    # ============================================================================
+    # MÉTODOS ORIGINALES (selfPlay y train sin cambios)
+    # ============================================================================
 
     def selfPlay(self, iteration=0, game_id=0):
-        """
-        Ejecuta una partida por self-play y devuelve la memoria (lista de tuples)
-        Cada entrada en memory_return será: (encoded_state, policy, outcome)
-        """
-        memory = []  # Para construir training returnMemory
-        training_samples = []  # Para enviar al GameLogger (move_uci, policy, fen, etc.)
-
+        """[Código original sin cambios]"""
+        memory = []
+        training_samples = []
         state = self.game.get_initial_state()
         move_count = 0
-
-        # Nota: ahora guardamos también la acción elegida en el historial para reconstrucción exacta
-        play_history = []  # lista de (state_copy, action_probs, turn, chosen_action)
+        play_history = []
 
         while True:
-            # Ejecutar MCTS para obtener policy (numpy array length action_size)
-            action_probs = self.mcts.search(state)  # se asume numpy array
+            action_probs = self.mcts.search(state)
             if not isinstance(action_probs, np.ndarray):
                 action_probs = np.array(action_probs, dtype=np.float32)
 
-            # Guardar estado + política + turno (y luego la acción elegida)
-            # Usamos state.copy() si tu objeto state lo soporta; si no, guardá una representación (p.ej. FEN)
-            # Para mantener compatibilidad con GameLogger, no convertimos aquí a FEN; lo haremos cuando armemos training_samples
-            # Pero guardamos el state entero para usar game.get_move_from_action(board, action) a la hora de reconstruir.
-            # Agregaremos chosen_action tras seleccionar la acción.
-            # Aplicar temperatura para exploración
             if move_count < 15:
                 temperature = 1.0
             elif move_count < 40:
@@ -60,83 +280,55 @@ class AlphaZero:
             else:
                 temperature = 0.1
 
-            # Aplicar temperatura (exponente sobre probabilidades)
-            # Evitar división por cero
             with np.errstate(divide='ignore', invalid='ignore'):
                 action_probs_temp = np.power(action_probs, 1.0 / max(1e-8, temperature))
 
             if action_probs_temp.sum() > 0:
                 action_probs_temp = action_probs_temp / float(action_probs_temp.sum())
             else:
-                # Fallback: uniforme sobre movimientos válidos (se asume array binaria o mask con probs)
-                valid_moves_mask = self.game.get_valid_moves(state)  # se asume numpy array del mismo largo
+                valid_moves_mask = self.game.get_valid_moves(state)
                 valid_moves_mask = np.array(valid_moves_mask, dtype=np.float32)
                 if valid_moves_mask.sum() > 0:
                     action_probs_temp = valid_moves_mask / float(valid_moves_mask.sum())
                 else:
-                    # Como último recurso, distribución uniforme completa
                     action_probs_temp = np.ones(self.game.action_size, dtype=np.float32)
                     action_probs_temp /= action_probs_temp.sum()
 
-            # Selección de acción
             action = int(np.random.choice(self.game.action_size, p=action_probs_temp))
-
-            # Registrar en historial (añadiremos la action escogida)
             play_history.append((state, action_probs.copy(), state.turn, action))
-
-            # Obtener movimiento (puede devolver chess.Move o string UCI) y confianza
             move = self.game.get_move_from_action(state, action)
-            confidence = float(action_probs[action]) if action < len(action_probs) else 0.0
-            fen = state.fen() if hasattr(state, "fen") else None
-
-            # Aplicar movimiento y avanzar estado
             state = self.game.get_next_state(state, action, 1)
             move_count += 1
-
-            # Verificar fin de juego (value + is_terminal)
             value, is_terminal = self.game.get_value_and_terminated(state, action)
 
             if is_terminal:
-                # Construimos returnMemory y training_samples usando play_history
                 returnMemory = []
-
                 for idx, (hist_state, hist_action_probs, hist_turn, hist_chosen_action) in enumerate(play_history):
-                    # Determinar outcome según 'value' (mantengo la lógica original)
                     if value == 0:
                         hist_outcome = 0
                     else:
-                        # Si en el estado terminal "state.turn == False" entonces (según lógica original)
-                        # winner_is_white = (state.turn == False)
                         winner_is_white = (state.turn == False)
-                        # hist_turn es True si en ese hist_state era turno de blancas
                         if hist_turn == winner_is_white:
                             hist_outcome = 1
                         else:
                             hist_outcome = -1
 
-                    # Encoded state para entrenamiento (vector/array)
                     encoded = self.game.get_encoded_state(hist_state)
                     returnMemory.append((encoded, hist_action_probs, hist_outcome))
 
-                    # Reconstruimos el movimiento realmente jugado en ese hist_state:
-                    # Usamos hist_chosen_action (la acción que realmente se escogió)
                     try:
                         played_action = int(hist_chosen_action)
                     except Exception:
-                        # fallback: tomar argmax de la política si algo raro pasó
                         played_action = int(np.argmax(hist_action_probs))
 
-                    # Obtener el movimiento desde la acción (puede ser chess.Move o string)
                     played_move = self.game.get_move_from_action(hist_state, played_action)
-                    # Normalizar move a string UCI si es posible
                     move_uci = None
                     try:
                         if isinstance(played_move, chess.Move):
                             move_uci = played_move.uci()
                         elif isinstance(played_move, str):
-                            move_uci = played_move  # asumimos UCI o SAN; el logger tiene lógica robusta para interpretar
+                            move_uci = played_move
                         else:
-                            # intentar str()
                             move_uci = str(played_move)
                     except Exception:
                         move_uci = str(played_move)
@@ -144,10 +336,8 @@ class AlphaZero:
                     played_confidence = float(hist_action_probs[played_action]) if played_action < len(hist_action_probs) else 0.0
                     board_fen = hist_state.fen() if hasattr(hist_state, "fen") else None
 
-                    # Agregamos sample en el formato que espera GameLogger:
-                    # (move_number, player, move_uci, move_confidence, policy, outcome, fen)
                     training_samples.append((
-                        idx + 1,  # move_number (1-based)
+                        idx + 1,
                         "white" if hist_turn else "black",
                         move_uci,
                         f"{played_confidence:.4f}",
@@ -156,13 +346,11 @@ class AlphaZero:
                         board_fen
                     ))
 
-                # Guardar training data consolidado
                 try:
                     self.logger.log_training_data(iteration, game_id, training_samples, self.game) # type: ignore
                 except Exception as e:
-                    print(f"⚠️ Error guardando training data: {e}")
+                    print(f"Error guardando training data: {e}")
 
-                # Determinar ganador para estadísticas (mantengo la lógica previa)
                 if value == 0:
                     winner = 'draw'
                 else:
@@ -175,19 +363,16 @@ class AlphaZero:
                     'termination_reason': termination,
                     'unique_positions': len(set(s[6] for s in training_samples if s[6] is not None))
                 }
-                # Guardar stats
                 try:
                     self.logger.log_game_stats(iteration, game_id, stats) # type: ignore
                 except Exception as e:
-                    print(f"⚠️ Error guardando stats de la partida: {e}")
+                    print(f"Error guardando stats de la partida: {e}")
 
-                # Retornar memoria para entrenamiento (encoded, policy, outcome)
                 return returnMemory
 
     def train(self, memory):
-        """Entrena la red a partir de memory = [(state_encoded, policy, value), ...]"""
+        """[Código original sin cambios]"""
         random.shuffle(memory)
-
         total_policy_loss = 0.0
         total_value_loss = 0.0
         num_batches = 0
@@ -196,34 +381,15 @@ class AlphaZero:
             sample = memory[batchIdx:batchIdx + self.args['batch_size']]
             state_batch, policy_targets_batch, value_targets_batch = zip(*sample)
 
-            # Convertir a tensores
-            state = torch.tensor(
-                np.array(state_batch),
-                dtype=torch.float32,
-                device=self.device
-            )
-            policy_targets = torch.tensor(
-                np.array(policy_targets_batch),
-                dtype=torch.float32,
-                device=self.device
-            )
-            value_targets = torch.tensor(
-                np.array(value_targets_batch).reshape(-1, 1),
-                dtype=torch.float32,
-                device=self.device
-            )
+            state = torch.tensor(np.array(state_batch), dtype=torch.float32, device=self.device)
+            policy_targets = torch.tensor(np.array(policy_targets_batch), dtype=torch.float32, device=self.device)
+            value_targets = torch.tensor(np.array(value_targets_batch).reshape(-1, 1), dtype=torch.float32, device=self.device)
 
             out_policy, out_value = self.model(state)
-
-            # Policy loss: cross-entropy (targets are distributions)
             policy_loss = -torch.sum(policy_targets * F.log_softmax(out_policy, dim=1)) / policy_targets.size(0)
-
-            # Value loss: MSE
             value_loss = F.mse_loss(out_value, value_targets)
-
             loss = policy_loss + value_loss
 
-            # Backprop
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -237,9 +403,24 @@ class AlphaZero:
 
         return avg_policy_loss, avg_value_loss
 
+    # ============================================================================
+    # LEARN CON GUARDADO SEGURO
+    # ============================================================================
+
     def learn(self):
-        """Loop principal de aprendizaje (iteraciones de self-play + entrenamiento)"""
-        for iteration in range(self.args['num_iterations']):
+        """Loop principal de aprendizaje con guardado robusto"""
+        
+        # Configuración de guardado
+        SAVE_EVERY = 5
+        DIFFICULTY_CHECKPOINTS = {
+            'principiante': 9,
+            'intermedio': 29,
+            'avanzado': 49
+        }
+        
+        start_iter = self.args.get('start_iteration', 0)
+        
+        for iteration in range(start_iter, self.args['num_iterations']):
             print(f"\n{'='*60}")
             print(f"ITERACIÓN {iteration + 1}/{self.args['num_iterations']}")
             print('='*60)
@@ -250,12 +431,10 @@ class AlphaZero:
             print(f"\nGenerando datos con self-play ({self.args['num_selfPlay_iterations']} partidas)")
             for selfPlay_iteration in tqdm(range(self.args['num_selfPlay_iterations']), desc="Self-play"):
                 game_memory = self.selfPlay(iteration=iteration, game_id=selfPlay_iteration)
-                # game_memory es una lista de (encoded_state, policy, outcome)
                 memory += game_memory
 
             print(f"Generados {len(memory)} estados de entrenamiento")
 
-            # Mostrar resumen de partidas desde logger
             summary = self.logger.get_game_summary(iteration)
             if summary:
                 print(f"\nResumen de partidas:")
@@ -266,25 +445,63 @@ class AlphaZero:
                     try:
                         print(f"Promedio de movimientos: {summary['avg_moves']:.1f}")
                     except Exception:
-                        print("Promedio de movimientos: (no disponible)")
-                else:
-                    print("⚠️ No hay datos para calcular el promedio de movimientos.")
+                        pass
 
-            # Entrenar modelo
             self.model.train()
             print(f"\nEntrenando modelo ({self.args['num_epochs']} épocas)")
 
             for epoch in range(self.args['num_epochs']):
                 avg_policy_loss, avg_value_loss = self.train(memory)
-
                 if (epoch + 1) % 10 == 0 or epoch == 0:
                     print(f"Época {epoch + 1}/{self.args['num_epochs']}: "
                           f"Policy Loss = {avg_policy_loss:.4f}, "
                           f"Value Loss = {avg_value_loss:.4f}")
 
-            # Guardar modelo/optimizer
-            print(f"\nGuardando modelo de iteración {iteration}")
-            os.makedirs("pytorch_files", exist_ok=True)
-            torch.save(self.model.state_dict(), f"pytorch_files/model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"pytorch_files/optimizer_{iteration}.pt")
+            should_save = False
+            difficulty_level = None
+            
+            for level, checkpoint_iter in DIFFICULTY_CHECKPOINTS.items():
+                if iteration == checkpoint_iter:
+                    should_save = True
+                    difficulty_level = level
+                    break
+            
+            if not should_save:
+                if (iteration + 1) % SAVE_EVERY == 0 or iteration == self.args['num_iterations'] - 1:
+                    should_save = True
+            
+            if should_save:
+                success = self._save_checkpoint_bundle(iteration, difficulty_level)
+                
+                # Si es checkpoint de dificultad y falló, intentar guardar checkpoint regular
+                if difficulty_level and not success:
+                    print(f"Intentando guardar checkpoint regular en su lugar...")
+                    self._save_checkpoint_bundle(iteration, difficulty_level=None)
+                
+                # Si falló completamente, advertir pero continuar entrenamiento
+                if not success:
+                    print(f"ADVERTENCIA: No se pudo guardar checkpoint de iteración {iteration}")
+                    print(f"El entrenamiento continuará, pero se perdió este punto de guardado")
+            
             print(f"Iteración {iteration + 1} completada")
+        
+        # Resumen final
+        print("\n" + "="*70)
+        print("ENTRENAMIENTO COMPLETADO")
+        print("="*70)
+        self._print_final_summary(DIFFICULTY_CHECKPOINTS)
+    
+    def _print_final_summary(self, difficulty_checkpoints):
+        print("\nModelos de dificultad generados:")
+        
+        for level, checkpoint_iter in difficulty_checkpoints.items():
+            path = os.path.join(self.checkpoint_dir, f"bot_{level}.pt")
+            if os.path.exists(path):
+                size_mb = os.path.getsize(path) / (1024**2)
+                print(f"{level.capitalize():15} → {path:40} ({size_mb:.1f} MB)")
+            else:
+                print(f"{level.capitalize():15} → NO GUARDADO")
+        
+        print("\n💡 Para usar estos bots:")
+        print('   python pygame_interface.py --model pytorch_files/bot_principiante.pt')
+        print("="*70)

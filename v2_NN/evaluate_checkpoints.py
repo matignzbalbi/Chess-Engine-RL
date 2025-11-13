@@ -68,10 +68,7 @@ def load_model_from_path(path, game):
     return model
 
 def play_one_game(modelA, modelB, game, mcts_args_a, mcts_args_b, max_moves=400):
-    """
-    Juega una partida entre modelA (white) y modelB (black).
-    Devuelve 1.0 si gana A (white), 0.5 empate, 0.0 si gana B.
-    """
+
     state = game.get_initial_state()  # tu método real
     move_count = 0
 

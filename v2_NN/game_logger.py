@@ -6,7 +6,6 @@ import chess
 
 
 class GameLogger:
-    """Clase para registrar partidas, datos de entrenamiento y estadísticas."""
 
     def __init__(self, log_dir: str = "game_logs") -> None:
         self.log_dir = log_dir
@@ -20,7 +19,6 @@ class GameLogger:
 
     # ---------------------------------------------------------------------
     def _init_files(self) -> None:
-        """Inicializa archivos CSV con headers si no existen"""
 
         # Archivo de estadísticas
         if not os.path.exists(self.stats_file):
@@ -43,7 +41,6 @@ class GameLogger:
 
     # ---------------------------------------------------------------------
     def log_game_stats(self, iteration: int, game_id: str, stats: dict) -> None:
-        """Guarda estadísticas de una partida en CSV"""
 
         # Guardar en CSV
         with open(self.stats_file, "a", newline="", encoding="utf-8") as f:
@@ -60,9 +57,7 @@ class GameLogger:
 
     # ---------------------------------------------------------------------
     def log_training_data(self, iteration: int, game_id: str, training_samples: list, game_instance) -> None:
-        """
-        Guarda datos de entrenamiento (políticas, outcomes, FENs y movimientos jugados).
-        """
+     
         with open(self.training_file, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
 
@@ -102,12 +97,10 @@ class GameLogger:
 
     # ---------------------------------------------------------------------
     def get_game_summary(self, iteration: int) -> dict:
-        """Obtiene resumen de partidas de una iteración desde CSV"""
         return self._get_summary_from_csv(iteration)
 
     # ---------------------------------------------------------------------
     def _get_summary_from_csv(self, iteration: int) -> dict:
-        """Lee resumen desde archivo CSV local"""
         if not os.path.exists(self.stats_file):
             return {}
 
@@ -143,7 +136,6 @@ class GameLogger:
 
     # ---------------------------------------------------------------------
     def log_batch_stats(self, iteration: int, stats_list: list) -> None:
-        """Guarda múltiples estadísticas de forma eficiente"""
         if not stats_list:
             return
 

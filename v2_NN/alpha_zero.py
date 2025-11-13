@@ -38,7 +38,6 @@ class AlphaZero:
 
 
     def _verify_checkpoint_directory(self):
-        """Verifica que el directorio de checkpoints exista y sea escribible"""
         try:
             # Crear directorio si no existe
             os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -84,7 +83,6 @@ class AlphaZero:
             return 100  # Fallback conservador: 100 MB
     
     def _safe_save_checkpoint(self, obj, filepath, description="checkpoint"):
-        """Guarda un checkpoint de forma segura con manejo de errores"""
         # Verificar espacio en disco
         estimated_size = self._estimate_checkpoint_size()
         available_space = self._get_available_disk_space(self.checkpoint_dir)
@@ -189,22 +187,21 @@ class AlphaZero:
         print(f"Guardando modelo...")
         if self._safe_save_checkpoint(self.model.state_dict(), model_path, f"modelo {base_name}"):
             size_mb = os.path.getsize(model_path) / (1024 ** 2)
-            print(f" Modelo guardado ({size_mb:.1f} MB)")
+            print(f"Modelo guardado ({size_mb:.1f} MB)")
             success_count += 1
         else:
             print(f"Falló guardado de modelo")
         
         # Guardar optimizer
-        print(f"   → Guardando optimizer...")
+        print(f"Guardando optimizer...")
         if self._safe_save_checkpoint(self.optimizer.state_dict(), optimizer_path, f"optimizer {base_name}"):
             size_mb = os.path.getsize(optimizer_path) / (1024 ** 2)
-            print(f"Optimizer guardado ({size_mb:.1f} MB)")
+            print(f" Optimizer guardado ({size_mb:.1f} MB)")
             success_count += 1
         else:
             print(f"Falló guardado de optimizer")
         
-        # Guardar configuración (JSON)
-        print(f"Guardando configuración...")
+        print(f"Guardando configuración")
         try:
             config = {
                 'iteration': iteration,
@@ -217,7 +214,6 @@ class AlphaZero:
                 'args': self.args
             }
             
-            # Guardar JSON con guardado atómico
             temp_config = config_path + ".tmp"
             with open(temp_config, 'w') as f:
                 json.dump(config, f, indent=2)
@@ -351,7 +347,6 @@ class AlphaZero:
                 return returnMemory
 
     def train(self, memory):
-        """Entrena el modelo con los datos recolectados"""
         random.shuffle(memory)
         total_policy_loss = 0.0
         total_value_loss = 0.0
@@ -383,9 +378,7 @@ class AlphaZero:
 
         return avg_policy_loss, avg_value_loss
 
-    def learn(self):
-        """Loop principal de aprendizaje"""
-        
+    def learn(self):        
         # Configuración: guardar cada X iteraciones
         SAVE_EVERY = self.args.get('save_every', 5)  # Por defecto cada 5 iteraciones
         start_iter = self.args.get('start_iteration', 0)
@@ -393,8 +386,7 @@ class AlphaZero:
         print(f"\n{'='*70}")
         print(f"CONFIGURACIÓN DE GUARDADO")
         print(f"{'='*70}")
-        print(f"✓ Se guardará checkpoint cada {SAVE_EVERY} iteraciones")
-        print(f"✓ Directorio: {self.checkpoint_dir}/")
+        print(f"Se guardará checkpoint cada {SAVE_EVERY} iteraciones")
         print(f"{'='*70}\n")
         
         for iteration in range(start_iter, self.args['num_iterations']):
@@ -421,7 +413,7 @@ class AlphaZero:
                       f"Empates: {summary.get('draws', 0)}")
                 if 'avg_moves' in summary:
                     try:
-                        print(f"Promedio de movimientos: {summary['avg_moves']:.1f}")
+                        print(f"   Promedio de movimientos: {summary['avg_moves']:.1f}")
                     except Exception:
                         pass
 
@@ -455,7 +447,7 @@ class AlphaZero:
         self._print_final_summary()
     
     def _print_final_summary(self):
-        """Imprime resumen de modelos guardados"""
+  
         print("\nModelos guardados:")
         
         # Listar todos los archivos .pt en el directorio
@@ -470,6 +462,6 @@ class AlphaZero:
             path = os.path.join(self.checkpoint_dir, model_file)
             size_mb = os.path.getsize(path) / (1024**2)
             total_size += size_mb
-            print(f"{model_file:30} ({size_mb:.1f} MB)")
+            print(f"   • {model_file:30} ({size_mb:.1f} MB)")
         
-        print(f"\n Total: {len(model_files)} modelos, {total_size:.1f} MB")
+        print(f"\n   Total: {len(model_files)} modelos, {total_size:.1f} MB")

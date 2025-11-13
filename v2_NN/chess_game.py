@@ -49,7 +49,6 @@ class ChessGame:
     
     def get_value_and_terminated(self, state, action_taken=None):
        
-        # Checkmate
         if state.is_checkmate():
             return -1, True
         
@@ -57,7 +56,7 @@ class ChessGame:
             return 0, True
         if state.is_insufficient_material():
             return 0, True
-        if state.is_seventyfive_moves():
+        if state.is_fifty_moves():
             return 0, True
         if state.is_fivefold_repetition():
             return 0, True

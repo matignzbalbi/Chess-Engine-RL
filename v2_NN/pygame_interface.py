@@ -1,13 +1,3 @@
-"""
-Interfaz Pygame para AlphaZero Chess
-Adaptado a tu código con python-chess y MCTS
-
-INSTALACIÓN:
-pip install pygame chess torch
-
-USO:
-python pygame_interface.py
-"""
 import ctypes 
 import pygame
 import chess
@@ -16,15 +6,10 @@ import time
 import sys
 import os
 from pathlib import Path
-
 from chess_game import ChessGame
 from model import create_chess_model
 from mcts import MCTS
 
-
-# ====================================================================
-# CONFIGURACIÓN AUTOMÁTICA DE RESOLUCIÓN
-# ====================================================================
 
 # Windows: pedir píxeles reales (DPI aware) antes de consultar resolución
 if sys.platform == "win32":
@@ -80,7 +65,7 @@ def create_piece_surfaces():
     for symbol, filename in piece_filenames.items():
         image_path = Path("assets/pieces") / filename
         if not image_path.exists():
-            print(f"⚠️ No se encontró {image_path}, se omitirá {symbol}")
+            print(f"No se encontró {image_path}, se omitirá {symbol}")
             continue
 
         # Cargar imagen con transparencia
@@ -89,7 +74,7 @@ def create_piece_surfaces():
         pieces[symbol] = image
 
     if not pieces:
-        print("❌ No se cargó ninguna imagen de pieza. Verificá la carpeta assets/pieces/")
+        print("No se cargó ninguna imagen de pieza. Verificá la carpeta assets/pieces/")
     else:
         print(f"✓ {len(pieces)} piezas cargadas correctamente.")
 
@@ -142,7 +127,7 @@ class ChessGUI:
         self.font_small = pygame.font.SysFont('Arial', 14)
 
         # Estado del juego
-        self.board = chess.Board()
+        self.board = chess.Board() # type: ignore
         self.selected_square = None
         self.legal_moves = []
         self.last_move = None
@@ -165,7 +150,7 @@ class ChessGUI:
         # Cargar imágenes de piezas
         print("Generando gráficos de piezas...")
         self.piece_images = create_piece_surfaces()
-        print("✓ Piezas renderizadas")
+        print("Piezas renderizadas")
 
         # Cargar modelo
         print(f"\nCargando modelo desde {model_path}...")
@@ -177,13 +162,13 @@ class ChessGUI:
             self.model.eval()
             print("✓ Modelo cargado exitosamente")
         except FileNotFoundError:
-            print(f"❌ Error: No se encontró {model_path}")
+            print(f"Error: No se encontró {model_path}")
             sys.exit(1)
 
         # Configurar MCTS
         self.args = {'C': 2, 'num_searches': num_searches}
         self.mcts = MCTS(self.game, self.args, self.model)
-        print(f"✓ MCTS configurado con {num_searches} búsquedas\n")
+        print(f"MCTS configurado con {num_searches} búsquedas\n")
 
         # Botones
         self.buttons = self._create_buttons()
@@ -351,9 +336,7 @@ class ChessGUI:
         col_padding_y = -2   # desplazamiento vertical (abajo +)
 
         for i in range(8):
-            # ==========================
-            # 🧮 Números (filas)
-            # ==========================
+          
             row_label = str(i + 1) if self.flipped else str(8 - i)
             text = self.font_small.render(row_label, True, (0, 0, 0))
             text_rect = text.get_rect()
@@ -363,9 +346,7 @@ class ChessGUI:
             )
             self.screen.blit(text, text_rect)
 
-            # ==========================
-            # 🔤 Letras (columnas)
-            # ==========================
+          
             col_label = chr(104 - i) if self.flipped else chr(97 + i)
             text = self.font_small.render(col_label, True, (0, 0, 0))
             text_rect = text.get_rect()
@@ -653,7 +634,7 @@ class ChessGUI:
                         # crear ventana sin bordes exactamente en 0,0 = cubrir monitor
                         self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
                         pygame.display.flip()
-                        print(f"🗖 Pantalla completa simulada exacta ({self.monitor_size})")
+                        print(f"Pantalla completa simulada exacta ({self.monitor_size})")
 
                     else:
                         # volver a modo ventana (ejemplo 1280x720 centrado)
@@ -676,7 +657,6 @@ class ChessGUI:
 
                         self.screen = pygame.display.set_mode((win_w, win_h))
                         pygame.display.flip()
-                        print("🗗 Volvió a modo ventana (1280x720)")
                     return True
 
 
@@ -892,7 +872,7 @@ def difficulty_menu():
     buttons = {
         "Principiante": {
             "rect": pygame.Rect(180, 130, 240, 50),
-            "model": "pytorch_files/model_1.pt"
+            "model": "pytorch_files/model_0.pt"
         },
         "Intermedio": {
             "rect": pygame.Rect(180, 200, 240, 50),

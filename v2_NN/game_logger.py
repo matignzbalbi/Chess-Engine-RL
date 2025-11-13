@@ -71,7 +71,7 @@ class GameLogger:
 
                 # Convertir de UCI a SAN (notación algebraica)
                 try:
-                    board = chess.Board(fen, chess960=False)
+                    board = chess.Board(fen, chess960=False) # type: ignore
                     move = chess.Move.from_uci(move_uci)
                     move_san = board.san(move)
                 except Exception as e:
@@ -169,11 +169,7 @@ class GameLogger:
         pass
 
 
-# ---------------------------------------------------------------------
-# Funciones auxiliares
-# ---------------------------------------------------------------------
 def format_winner(value: int, current_player_turn: bool) -> str:
-    """Formatea el ganador según value y turno actual"""
     if value == 0:
         return "draw"
     elif value == 1:
@@ -183,15 +179,14 @@ def format_winner(value: int, current_player_turn: bool) -> str:
 
 
 def format_termination(state: chess.Board) -> str:
-    """Determina la razón de terminación de la partida"""
     if state.is_checkmate():
         return "checkmate"
     elif state.is_stalemate():
         return "stalemate"
     elif state.is_insufficient_material():
         return "insufficient_material"
-    elif state.is_seventyfive_moves():
-        return "seventy_five_moves"
+    elif state.is_fifty_moves():
+        return "fifty_moves"
     elif state.is_repetition(3):
         return "threefold_repetition"
     else:

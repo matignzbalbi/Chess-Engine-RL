@@ -122,7 +122,7 @@ def play_one_game(modelA, modelB, game, mcts_args_a, mcts_args_b, max_moves=400)
             return 0.0
         else:
             return 1.0
-    elif state.is_stalemate() or state.is_insufficient_material() or state.is_fivefold_repetition() or state.is_seventyfive_moves():
+    elif state.is_stalemate() or state.is_insufficient_material() or state.is_fivefold_repetition() or state.is_fifty_moves():
         return 0.5
     else:
         # fallback: usar value returned

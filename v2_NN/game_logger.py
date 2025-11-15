@@ -177,7 +177,7 @@ def format_termination(state: chess.Board) -> str:
         return "stalemate"
     elif state.is_insufficient_material():
         return "insufficient_material"
-    elif state.is_fifty_moves():
+    elif state.halfmove_clock >= 100:
         return "fifty_moves"
     elif state.is_repetition(3):
         return "threefold_repetition"

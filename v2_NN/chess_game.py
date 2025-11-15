@@ -56,7 +56,7 @@ class ChessGame:
             return 0, True
         if state.is_insufficient_material():
             return 0, True
-        if state.is_fifty_moves():
+        if state.halfmove_clock >= 100:
             return 0, True
         if state.is_fivefold_repetition():
             return 0, True

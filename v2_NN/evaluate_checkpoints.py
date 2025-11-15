@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # evaluate_checkpoints.py
 # Versión adaptada a la API de tu repo v2_NN (ChessGame, MCTS, model.create_chess_model)
 import os
@@ -31,7 +34,7 @@ def load_model_from_path(path, game):
             config = json.load(f)
         num_resBlocks = config.get("num_resBlocks", default_config["num_resBlocks"])
         num_hidden = config.get("num_hidden", default_config["num_hidden"])
-        print(f"[INFO] Config encontrada para {path}: {config}")
+        logging.info(f"[INFO] Config encontrada para {path}: {config}")
     else:
         # Detectar num_hidden mirando startBlock.0.weight si existe
         detected_hidden = None
@@ -41,10 +44,10 @@ def load_model_from_path(path, game):
                 break
         if detected_hidden:
             num_hidden = detected_hidden
-            print(f"[INFO] Detectado automáticamente num_hidden={num_hidden} desde {path}")
+            logging.info(f"[INFO] Detectado automáticamente num_hidden={num_hidden} desde {path}")
         else:
             num_hidden = default_config["num_hidden"]
-            print(f"[WARN] No detectado num_hidden en {path}. Usando {num_hidden}")
+            logging.info(f"[WARN] No detectado num_hidden en {path}. Usando {num_hidden}")
         num_resBlocks = default_config["num_resBlocks"]
 
     # Crear el modelo con la firma que usa tu repo
@@ -57,11 +60,11 @@ def load_model_from_path(path, game):
     # Intentar cargar
     try:
         model.load_state_dict(sd)
-        print(f"[OK] Modelo cargado completamente desde {path}")
+        logging.info(f"[OK] Modelo cargado completamente desde {path}")
     except RuntimeError as e:
-        print(f"[WARN] Error al cargar completamente {path}: {str(e).splitlines()[0]}")
+        logging.error(f"[WARN] Error al cargar completamente {path}: {str(e).splitlines()[0]}")
         model.load_state_dict(sd, strict=False)
-        print(f"[DONE] Modelo cargado parcialmente desde {path}")
+        logging.info(f"[DONE] Modelo cargado parcialmente desde {path}")
 
     model.to(DEVICE)
     model.eval()
@@ -140,7 +143,7 @@ def main():
 
     ckpts = sorted(glob.glob(os.path.join(CHECKPOINT_DIR, "model_*.pt")))
     if len(ckpts) < 2:
-        print("Necesitás al menos 2 checkpoints en", CHECKPOINT_DIR)
+        logging.info("Necesitás al menos 2 checkpoints en", CHECKPOINT_DIR)
         return
 
     game = ChessGame()
@@ -177,9 +180,9 @@ def main():
                 else:
                     wins_b += 1
                 rating.record_match_result(a_name, b_name, res)
-            print(f"Match {a_name} vs {b_name}: A_wins={wins_a}, draws={draws}, B_wins={wins_b}")
+            logging.info(f"Match {a_name} vs {b_name}: A_wins={wins_a}, draws={draws}, B_wins={wins_b}")
     rating.save()
-    print("Ratings saved to ratings.csv")
+    logging.info("Ratings saved to ratings.csv")
 
 if __name__ == "__main__":
     main()

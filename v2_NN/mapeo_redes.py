@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import os
 import json
 import torch
@@ -91,7 +94,7 @@ def plot_activaciones(act_A, act_B, out_folder, capa):
 # 5) MAIN
 # =====================================================
 if __name__ == "__main__":
-    print("Cargando modelos...")
+    logging.info("Cargando modelos...")
 
     # Rutas
     RUTA_MODELO_A = r"C:\Users\julia\OneDrive\Escritorio\AjedrezPosta\UNLu-MCTSNN\v2_NN\pytorch_files\model_1.pt"
@@ -106,7 +109,7 @@ if __name__ == "__main__":
     def load_config(path):
         with open(path, "r") as f:
             cfg = json.load(f)
-        print(f"Cargando config JSON: num_resBlocks={cfg['num_resBlocks']}, num_hidden={cfg['num_hidden']}, action_size={cfg['action_size']}")
+        logging.info(f"Cargando config JSON: num_resBlocks={cfg['num_resBlocks']}, num_hidden={cfg['num_hidden']}, action_size={cfg['action_size']}")
         return cfg
 
     cfg_A = load_config(RUTA_CONFIG_A)
@@ -121,7 +124,7 @@ if __name__ == "__main__":
     # Obtener tamaño real
     action_size = mapper.action_size
 
-    print("Action size:", action_size)
+    logging.info("Action size:", action_size)
 
 
     # Crear modelos
@@ -132,12 +135,12 @@ if __name__ == "__main__":
     model_A.load_state_dict(torch.load(RUTA_MODELO_A, map_location="cpu"))
     model_B.load_state_dict(torch.load(RUTA_MODELO_B, map_location="cpu"))
 
-    print("Modelos cargados correctamente.")
+    logging.info("Modelos cargados correctamente.")
 
     # Input de prueba: tablero vacío (o como prefieras)
     dummy_input = torch.zeros((1, 12, 8, 8))
 
-    print("Instrumentando y ejecutando forward...")
+    logging.info("Instrumentando y ejecutando forward...")
     act_A = obtener_activaciones(model_A, dummy_input)
     act_B = obtener_activaciones(model_B, dummy_input)
 
@@ -145,8 +148,8 @@ if __name__ == "__main__":
     capas_B = set(act_B.keys())
     comunes = capas_A & capas_B
 
-    print(f"Capas A: {len(capas_A)}, Capas B: {len(capas_B)}, Comunes: {len(comunes)}")
-    print("Ejemplos capas:", list(capas_A)[:20])
+    logging.info(f"Capas A: {len(capas_A)}, Capas B: {len(capas_B)}, Comunes: {len(comunes)}")
+    logging.info("Ejemplos capas:", list(capas_A)[:20])
 
     # Comparación
     diffs = comparar_activaciones(act_A, act_B)
@@ -162,11 +165,11 @@ if __name__ == "__main__":
         for capa, mse in diffs.items():
             f.write(f"{capa},{mse}\n")
 
-    print(f"Guardado resumen CSV en: {csv_path}")
+    logging.info(f"Guardado resumen CSV en: {csv_path}")
 
     # Plots
     for capa in diffs.keys():
         plot_activaciones(act_A, act_B, out_folder, capa)
 
-    print("Plots guardados en:", out_folder)
-    print("Comparación completada.")
+    logging.info("Plots guardados en:", out_folder)
+    logging.info("Comparación completada.")

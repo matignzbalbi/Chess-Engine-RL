@@ -1,3 +1,5 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -102,15 +104,15 @@ if __name__ == "__main__":
     game = ChessGame()
     model = create_chess_model(game, num_resBlocks=4, num_hidden=64)
     
-    print(model)
-    print(f"\nNúmero de parámetros: {count_parameters(model):,}")
+    logging.info(model)
+    logging.info(f"\nNúmero de parámetros: {count_parameters(model):,}")
     
     # Probar forward pass
     batch_size = 2
     dummy_input = torch.randn(batch_size, 12, 8, 8)
     
     policy, value = model(dummy_input)
-    print(f"Input shape: {dummy_input.shape}")
-    print(f"Policy output shape: {policy.shape}")  # (2, 4672)
-    print(f"Value output shape: {value.shape}")    # (2, 1)
-    print(f"Value range: [{value.min().item():.3f}, {value.max().item():.3f}]")
+    logging.info(f"Input shape: {dummy_input.shape}")
+    logging.info(f"Policy output shape: {policy.shape}")  # (2, 4672)
+    logging.info(f"Value output shape: {value.shape}")    # (2, 1)
+    logging.info(f"Value range: [{value.min().item():.3f}, {value.max().item():.3f}]")

@@ -15,7 +15,7 @@ args = {
     'C': 2,
     'num_searches': 5,
     'num_selfPlay_iterations': 1,
-    'num_iterations': 1,
+    'num_iterations': 5,
     'num_epochs': 1,
     'batch_size': 16
 }

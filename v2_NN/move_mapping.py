@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import chess
 import numpy as np
 
@@ -11,10 +14,10 @@ class MoveMapper:
         
         if include_queen_promotions:
             self.action_size = 4864  # 64 × 76 planes
-            print("Usando mapeo EXTENDIDO con promociones a dama explícitas")
+            logging.info("Usando mapeo EXTENDIDO con promociones a dama explícitas")
         else:
             self.action_size = 4672  # 64 × 73 planes (AlphaZero estándar)
-            print("Usando mapeo ESTÁNDAR (promociones a dama implícitas)")
+            logging.info("Usando mapeo ESTÁNDAR (promociones a dama implícitas)")
             
         self._move_to_index = {}
         self._index_to_move = {}
@@ -119,8 +122,8 @@ class MoveMapper:
         assert action_idx == expected_size, \
             f"Se generaron {action_idx} acciones, se esperaban {expected_size}"
         
-        print(f"Mapeo de movimientos construido: {action_idx} acciones totales")
-        print(f"Movimientos únicos mapeados: {len(self._move_to_index)}")
+        logging.info(f"Mapeo de movimientos construido: {action_idx} acciones totales")
+        logging.info(f"Movimientos únicos mapeados: {len(self._move_to_index)}")
 
 
     def move_to_action(self, move):
@@ -187,7 +190,7 @@ class MoveMapper:
             except ValueError as e:
                 # Logging mejorado
                 import sys
-                print(f"Advertencia: {e}", file=sys.stderr)
+                logging.info(f"Advertencia: {e}", file=sys.stderr)
                 continue
         
         return mask
@@ -207,7 +210,7 @@ class MoveMapper:
         # Advertir si hay movimientos no mapeados
         if unmapped_moves:
             import sys
-            print(f"{len(unmapped_moves)} movimientos legales no mapeados: {unmapped_moves[:5]}", 
+            logging.info(f"{len(unmapped_moves)} movimientos legales no mapeados: {unmapped_moves[:5]}", 
                   file=sys.stderr)
         
         return actions

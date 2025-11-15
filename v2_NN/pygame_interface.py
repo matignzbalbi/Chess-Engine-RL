@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import ctypes 
 import pygame
 import chess
@@ -65,7 +68,7 @@ def create_piece_surfaces():
     for symbol, filename in piece_filenames.items():
         image_path = Path("assets/pieces") / filename
         if not image_path.exists():
-            print(f"No se encontró {image_path}, se omitirá {symbol}")
+            logging.info(f"No se encontró {image_path}, se omitirá {symbol}")
             continue
 
         # Cargar imagen con transparencia
@@ -74,9 +77,9 @@ def create_piece_surfaces():
         pieces[symbol] = image
 
     if not pieces:
-        print("No se cargó ninguna imagen de pieza. Verificá la carpeta assets/pieces/")
+        logging.info("No se cargó ninguna imagen de pieza. Verificá la carpeta assets/pieces/")
     else:
-        print(f"✓ {len(pieces)} piezas cargadas correctamente.")
+        logging.info(f" {len(pieces)} piezas cargadas correctamente.")
 
     return pieces
 
@@ -148,27 +151,27 @@ class ChessGUI:
         self.max_scroll = 0
 
         # Cargar imágenes de piezas
-        print("Generando gráficos de piezas...")
+        logging.info("Generando gráficos de piezas...")
         self.piece_images = create_piece_surfaces()
-        print("Piezas renderizadas")
+        logging.info("Piezas renderizadas")
 
         # Cargar modelo
-        print(f"\nCargando modelo desde {model_path}...")
+        logging.info(f"\nCargando modelo desde {model_path}...")
         self.game = ChessGame()
         self.model = create_chess_model(self.game, num_resBlocks, num_hidden)
 
         try:
             self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
             self.model.eval()
-            print("✓ Modelo cargado exitosamente")
+            logging.info(" Modelo cargado exitosamente")
         except FileNotFoundError:
-            print(f"Error: No se encontró {model_path}")
+            logging.error(f"Error: No se encontró {model_path}")
             sys.exit(1)
 
         # Configurar MCTS
         self.args = {'C': 2, 'num_searches': num_searches}
         self.mcts = MCTS(self.game, self.args, self.model)
-        print(f"MCTS configurado con {num_searches} búsquedas\n")
+        logging.info(f"MCTS configurado con {num_searches} búsquedas\n")
 
         # Botones
         self.buttons = self._create_buttons()
@@ -176,12 +179,12 @@ class ChessGUI:
         # Fullscreen state (por seguridad)
         self.fullscreen = True
 
-        print("=" * 60)
-        print("CONTROLES:")
-        print("  - Click en pieza para seleccionar")
-        print("  - Click en casilla válida para mover")
-        print("  - Botones en panel derecho para controles")
-        print("=" * 60 + "\n")
+        logging.info("=" * 60)
+        logging.info("CONTROLES:")
+        logging.info("  - Click en pieza para seleccionar")
+        logging.info("  - Click en casilla válida para mover")
+        logging.info("  - Botones en panel derecho para controles")
+        logging.info("=" * 60 + "\n")
 
     def _create_buttons(self):
         return {
@@ -326,7 +329,7 @@ class ChessGUI:
         Permite ajustar los padings por separado para letras y números.
         """
 
-        # 🔧 Ajustes personalizados (podés modificarlos libremente)
+        #  Ajustes personalizados (podés modificarlos libremente)
         # Números (filas)
         row_padding_x = 4   # desplazamiento horizontal (derecha +)
         row_padding_y = 2   # desplazamiento vertical (abajo +)
@@ -604,7 +607,7 @@ class ChessGUI:
 
             if rect.collidepoint(pos):
 
-                # 🖥️ Alternar pantalla completa real
+                #  Alternar pantalla completa real
                 if label == 'Fullscreen':
                     self.fullscreen = not self.fullscreen
 
@@ -634,7 +637,7 @@ class ChessGUI:
                         # crear ventana sin bordes exactamente en 0,0 = cubrir monitor
                         self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
                         pygame.display.flip()
-                        print(f"Pantalla completa simulada exacta ({self.monitor_size})")
+                        logging.info(f"Pantalla completa simulada exacta ({self.monitor_size})")
 
                     else:
                         # volver a modo ventana (ejemplo 1280x720 centrado)
@@ -662,7 +665,7 @@ class ChessGUI:
 
 
                 elif label == 'Cerrar':
-                    print("Cerrando juego...")
+                    logging.info("Cerrando juego...")
                     pygame.quit()
                     sys.exit()
 
@@ -706,10 +709,10 @@ class ChessGUI:
         # Cambiar el color del jugador humano
         if self.flipped:
             self.human_color = chess.BLACK
-            print("Tablero girado: negras abajo (jugás con negras)")
+            logging.info("Tablero girado: negras abajo (jugás con negras)")
         else:
             self.human_color = chess.WHITE
-            print("Tablero girado: blancas abajo (jugás con blancas)")
+            logging.info("Tablero girado: blancas abajo (jugás con blancas)")
 
         # Reiniciar selección y movimientos legales
         self.selected_square = None
@@ -742,7 +745,7 @@ class ChessGUI:
         move_str = f"{move_num}. {move.uci()} (Bot RL)"
         self.move_history.append(move_str)
 
-        print(f"Bot RL jugó: {move.uci()} | Confianza: {self.ai_stats['confidence']:.1%} | Tiempo: {self.ai_stats['think_time']:.1f}s")
+        logging.info(f"Bot RL jugó: {move.uci()} | Confianza: {self.ai_stats['confidence']:.1%} | Tiempo: {self.ai_stats['think_time']:.1f}s")
 
         # Verificar fin de juego
         if self.board.is_game_over():
@@ -786,7 +789,7 @@ class ChessGUI:
 
                             self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
                             pygame.display.flip()
-                            print(f"Pantalla completa simulada ({self.monitor_size})")
+                            logging.info(f"Pantalla completa simulada ({self.monitor_size})")
 
                         else:
                             # salir a ventana centrada 1280x720
@@ -806,7 +809,7 @@ class ChessGUI:
 
                             self.screen = pygame.display.set_mode((win_w, win_h))
                             pygame.display.flip()
-                            print("Modo ventana restaurado")
+                            logging.info("Modo ventana restaurado")
 
 
                 elif event.type == pygame.MOUSEWHEEL:
@@ -923,9 +926,9 @@ def difficulty_menu():
 
 def main():
     """Función principal"""
-    print("\n" + "=" * 60)
-    print("BOT RL CHESS - PYGAME INTERFACE")
-    print("=" * 60 + "\n")
+    logging.info("\n" + "=" * 60)
+    logging.info("BOT RL CHESS - PYGAME INTERFACE")
+    logging.info("=" * 60 + "\n")
 
     model_path = difficulty_menu()
 
@@ -935,12 +938,12 @@ def main():
 
     # Verificar modelo seleccionado
     if not Path(model_path).exists():
-        print(f"Error: No se encontró el modelo en '{model_path}'")
+        logging.error(f"Error: No se encontró el modelo en '{model_path}'")
         sys.exit(1)
 
     # Ajustar búsquedas según hardware
     if not torch.cuda.is_available():
-        print("GPU no detectada. Reduciendo búsquedas MCTS para mejor rendimiento")
+        logging.info("GPU no detectada. Reduciendo búsquedas MCTS para mejor rendimiento")
         NUM_SEARCHES = 50
 
     # Crear e iniciar GUI
@@ -951,12 +954,12 @@ def main():
             num_hidden=NUM_HIDDEN,
             num_searches=NUM_SEARCHES
         )
-        print(f"✓ Dificultad seleccionada: {Path(model_path).name.replace('.pt', '').replace('_', ' ').capitalize()}")
-        print("✓ GUI lista. Iniciando juego...\n")
+        logging.info(f" Dificultad seleccionada: {Path(model_path).name.replace('.pt', '').replace('_', ' ').capitalize()}")
+        logging.info(" GUI lista. Iniciando juego...\n")
         gui.run()
 
     except Exception as e:
-        print(f"\nError fatal: {e}")
+        logging.error(f"\nError fatal: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

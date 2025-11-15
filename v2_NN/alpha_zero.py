@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -23,14 +26,14 @@ class AlphaZero:
         # Configurar device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        print(f"Usando device: {self.device}")
+        logging.info(f"Usando device: {self.device}")
 
         # MCTS
         self.mcts = MCTS(game, args, model, device=self.device)
 
         # Logger
         self.logger = GameLogger()
-        print(f"Logs guardándose en: {self.logger.log_dir}/")
+        logging.info(f"Logs guardándose en: {self.logger.log_dir}/")
         
         # Verificar directorio de checkpoints al inicio
         self.checkpoint_dir = "pytorch_files"
@@ -48,13 +51,13 @@ class AlphaZero:
                 f.write("test")
             os.remove(test_file)
             
-            print(f"✓ Directorio de checkpoints verificado: {self.checkpoint_dir}/")
+            logging.info(f" Directorio de checkpoints verificado: {self.checkpoint_dir}/")
             
         except PermissionError:
-            print(f"ERROR: Sin permisos de escritura en {self.checkpoint_dir}/")
+            logging.error(f"ERROR: Sin permisos de escritura en {self.checkpoint_dir}/")
             raise
         except OSError as e:
-            print(f"ERROR: No se puede crear directorio {self.checkpoint_dir}/: {e}")
+            logging.error(f"ERROR: No se puede crear directorio {self.checkpoint_dir}/: {e}")
             raise
     
     def _get_available_disk_space(self, path="."):
@@ -88,10 +91,10 @@ class AlphaZero:
         available_space = self._get_available_disk_space(self.checkpoint_dir)
         
         if available_space < estimated_size * 2:  # Requerir 2x el tamaño (seguridad)
-            print(f"ADVERTENCIA: Poco espacio en disco")
-            print(f"Disponible: {available_space:.1f} MB")
-            print(f"Necesario: {estimated_size * 2:.1f} MB")
-            print(f"NO se guardó {description}")
+            logging.info(f"ADVERTENCIA: Poco espacio en disco")
+            logging.info(f"Disponible: {available_space:.1f} MB")
+            logging.info(f"Necesario: {estimated_size * 2:.1f} MB")
+            logging.info(f"NO se guardó {description}")
             return False
         
         try:
@@ -102,7 +105,7 @@ class AlphaZero:
                 try:
                     shutil.copy2(filepath, backup_path)
                 except Exception as e:
-                    print(f"No se pudo crear backup de {filepath}: {e}")
+                    logging.info(f"No se pudo crear backup de {filepath}: {e}")
             
             # Guardar en archivo temporal (guardado atómico)
             temp_fd, temp_path = tempfile.mkstemp(
@@ -140,28 +143,28 @@ class AlphaZero:
             return True
             
         except IOError as e:
-            print(f"ERROR de E/S al guardar {description}: {e}")
+            logging.error(f"ERROR de E/S al guardar {description}: {e}")
             
             # Restaurar desde backup si existe
             if backup_path and os.path.exists(backup_path):
                 try:
                     shutil.copy2(backup_path, filepath)
-                    print(f"Restaurado desde backup: {filepath}")
+                    logging.info(f"Restaurado desde backup: {filepath}")
                 except Exception as restore_err:
-                    print(f"No se pudo restaurar backup: {restore_err}")
+                    logging.info(f"No se pudo restaurar backup: {restore_err}")
             
             return False
             
         except RuntimeError as e:
-            print(f"ERROR de PyTorch al guardar {description}: {e}")
+            logging.error(f"ERROR de PyTorch al guardar {description}: {e}")
             return False
             
         except MemoryError:
-            print(f"ERROR: Sin memoria para guardar {description}")
+            logging.error(f"ERROR: Sin memoria para guardar {description}")
             return False
             
         except Exception as e:
-            print(f"ERROR inesperado al guardar {description}: {type(e).__name__}: {e}")
+            logging.error(f"ERROR inesperado al guardar {description}: {type(e).__name__}: {e}")
             return False
         
         finally:
@@ -177,31 +180,31 @@ class AlphaZero:
         total_saves = 3  # modelo + optimizer + config
         
         base_name = f"model_{iteration}"
-        print(f"\nGuardando checkpoint de iteración {iteration}")
+        logging.info(f"\nGuardando checkpoint de iteración {iteration}")
         
         model_path = os.path.join(self.checkpoint_dir, f"{base_name}.pt")
         optimizer_path = os.path.join(self.checkpoint_dir, f"{base_name}_optimizer.pt")
         config_path = os.path.join(self.checkpoint_dir, f"{base_name}_config.json")
         
         # Guardar modelo
-        print(f"Guardando modelo...")
+        logging.info(f"Guardando modelo...")
         if self._safe_save_checkpoint(self.model.state_dict(), model_path, f"modelo {base_name}"):
             size_mb = os.path.getsize(model_path) / (1024 ** 2)
-            print(f"Modelo guardado ({size_mb:.1f} MB)")
+            logging.info(f"Modelo guardado ({size_mb:.1f} MB)")
             success_count += 1
         else:
-            print(f"Falló guardado de modelo")
+            logging.info(f"Falló guardado de modelo")
         
         # Guardar optimizer
-        print(f"Guardando optimizer...")
+        logging.info(f"Guardando optimizer...")
         if self._safe_save_checkpoint(self.optimizer.state_dict(), optimizer_path, f"optimizer {base_name}"):
             size_mb = os.path.getsize(optimizer_path) / (1024 ** 2)
-            print(f" Optimizer guardado ({size_mb:.1f} MB)")
+            logging.info(f" Optimizer guardado ({size_mb:.1f} MB)")
             success_count += 1
         else:
-            print(f"Falló guardado de optimizer")
+            logging.info(f"Falló guardado de optimizer")
         
-        print(f"Guardando configuración")
+        logging.info(f"Guardando configuración")
         try:
             config = {
                 'iteration': iteration,
@@ -219,21 +222,21 @@ class AlphaZero:
                 json.dump(config, f, indent=2)
             
             shutil.move(temp_config, config_path)
-            print(f" Configuración guardada")
+            logging.info(f" Configuración guardada")
             success_count += 1
             
         except Exception as e:
-            print(f"Falló guardado de configuración: {e}")
+            logging.info(f"Falló guardado de configuración: {e}")
         
         # Resultado final
         if success_count == total_saves:
-            print(f"Checkpoint completo guardado exitosamente")
+            logging.info(f"Checkpoint completo guardado exitosamente")
             return True
         elif success_count > 0:
-            print(f"Checkpoint guardado parcialmente ({success_count}/{total_saves})")
+            logging.info(f"Checkpoint guardado parcialmente ({success_count}/{total_saves})")
             return False
         else:
-            print(f"Falló completamente el guardado del checkpoint")
+            logging.info(f"Falló completamente el guardado del checkpoint")
             return False
 
     def selfPlay(self, iteration=0, game_id=0):
@@ -325,7 +328,7 @@ class AlphaZero:
                 try:
                     self.logger.log_training_data(iteration, game_id, training_samples, self.game) # type: ignore
                 except Exception as e:
-                    print(f"Error guardando training data: {e}")
+                    logging.error(f"Error guardando training data: {e}")
 
                 if value == 0:
                     winner = 'draw'
@@ -342,7 +345,7 @@ class AlphaZero:
                 try:
                     self.logger.log_game_stats(iteration, game_id, stats) # type: ignore
                 except Exception as e:
-                    print(f"Error guardando stats de la partida: {e}")
+                    logging.error(f"Error guardando stats de la partida: {e}")
 
                 return returnMemory
 
@@ -383,43 +386,43 @@ class AlphaZero:
         SAVE_EVERY = self.args.get('save_every', 5)  # Por defecto cada 5 iteraciones
         start_iter = self.args.get('start_iteration', 0)
         
-        print(f"\n{'='*70}")
-        print(f"CONFIGURACIÓN DE GUARDADO")
-        print(f"{'='*70}")
-        print(f"Se guardará checkpoint cada {SAVE_EVERY} iteraciones")
-        print(f"{'='*70}\n")
+        logging.info(f"\n{'='*70}")
+        logging.info(f"CONFIGURACIÓN DE GUARDADO")
+        logging.info(f"{'='*70}")
+        logging.info(f"Se guardará checkpoint cada {SAVE_EVERY} iteraciones")
+        logging.info(f"{'='*70}\n")
         
         for iteration in range(start_iter, self.args['num_iterations']):
-            print(f"\n{'='*60}")
-            print(f"ITERACIÓN {iteration + 1}/{self.args['num_iterations']}")
-            print('='*60)
+            logging.info(f"\n{'='*60}")
+            logging.info(f"ITERACIÓN {iteration + 1}/{self.args['num_iterations']}")
+            logging.info('='*60)
 
             memory = []
             self.model.eval()
 
-            print(f"\nGenerando datos con self-play ({self.args['num_selfPlay_iterations']} partidas)")
+            logging.info(f"\nGenerando datos con self-play ({self.args['num_selfPlay_iterations']} partidas)")
             for selfPlay_iteration in tqdm(range(self.args['num_selfPlay_iterations']), desc="Self-play"):
                 game_memory = self.selfPlay(iteration=iteration, game_id=selfPlay_iteration)
                 memory += game_memory
 
-            print(f"✓ Generados {len(memory)} estados de entrenamiento")
+            logging.info(f" Generados {len(memory)} estados de entrenamiento")
 
             # Mostrar resumen de partidas
             summary = self.logger.get_game_summary(iteration)
             if summary:
-                print(f"\nResumen de partidas:")
-                print(f"   Blancas: {summary.get('white_wins', 0)} | "
+                logging.info(f"\nResumen de partidas:")
+                logging.info(f"   Blancas: {summary.get('white_wins', 0)} | "
                       f"Negras: {summary.get('black_wins', 0)} | "
                       f"Empates: {summary.get('draws', 0)}")
                 if 'avg_moves' in summary:
                     try:
-                        print(f"   Promedio de movimientos: {summary['avg_moves']:.1f}")
+                        logging.info(f"   Promedio de movimientos: {summary['avg_moves']:.1f}")
                     except Exception:
                         pass
 
             # Entrenamiento
             self.model.train()
-            print(f"\nEntrenando modelo ({self.args['num_epochs']} épocas)")
+            logging.info(f"\nEntrenando modelo ({self.args['num_epochs']} épocas)")
 
             for epoch in range(self.args['num_epochs']):
                 avg_policy_loss, avg_value_loss = self.train(memory)
@@ -435,26 +438,26 @@ class AlphaZero:
                 success = self._save_checkpoint_bundle(iteration)
                 
                 if not success:
-                    print(f"ADVERTENCIA: No se pudo guardar checkpoint de iteración {iteration}")
-                    print(f"El entrenamiento continuará, pero se perdió este punto de guardado")
+                    logging.info(f"ADVERTENCIA: No se pudo guardar checkpoint de iteración {iteration}")
+                    logging.info(f"El entrenamiento continuará, pero se perdió este punto de guardado")
             
-            print(f"\n✓ Iteración {iteration + 1} completada")
+            logging.info(f"\n Iteración {iteration + 1} completada")
         
         # Resumen final
-        print("\n" + "="*70)
-        print("ENTRENAMIENTO COMPLETADO")
-        print("="*70)
+        logging.info("\n" + "="*70)
+        logging.info("ENTRENAMIENTO COMPLETADO")
+        logging.info("="*70)
         self._print_final_summary()
     
     def _print_final_summary(self):
   
-        print("\nModelos guardados:")
+        logging.info("\nModelos guardados:")
         
         # Listar todos los archivos .pt en el directorio
         model_files = sorted([f for f in os.listdir(self.checkpoint_dir) if f.endswith('.pt') and not f.endswith('_optimizer.pt')])
         
         if not model_files:
-            print("No se encontraron modelos guardados")
+            logging.info("No se encontraron modelos guardados")
             return
         
         total_size = 0
@@ -462,6 +465,6 @@ class AlphaZero:
             path = os.path.join(self.checkpoint_dir, model_file)
             size_mb = os.path.getsize(path) / (1024**2)
             total_size += size_mb
-            print(f"   • {model_file:30} ({size_mb:.1f} MB)")
+            logging.info(f"   • {model_file:30} ({size_mb:.1f} MB)")
         
-        print(f"\n   Total: {len(model_files)} modelos, {total_size:.1f} MB")
+        logging.info(f"\n   Total: {len(model_files)} modelos, {total_size:.1f} MB")

@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import numpy as np
 import math
 import torch
@@ -76,7 +79,7 @@ class Node:
                 except (ValueError, Exception) as e:
                     # Ignorar movimientos que fallen
                     import sys
-                    print(f"Acción {action} falló: {e}", file=sys.stderr)
+                    logging.info(f"Acción {action} falló: {e}", file=sys.stderr)
                     continue
             
     def backpropagate(self, value):

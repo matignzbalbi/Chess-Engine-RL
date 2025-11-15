@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import csv
 import os
 import numpy as np
@@ -71,7 +74,7 @@ class GameLogger:
                     move_san = board.san(move)
                 except Exception as e:
                     move_san = move_uci
-                    print(f"⚠️ Error al convertir '{move_uci}' a SAN: {e}")
+                    logging.error(f" Error al convertir '{move_uci}' a SAN: {e}")
 
                 # Obtener top 5 movimientos
                 top_5_indices = np.argsort(policy)[-5:][::-1]
@@ -177,7 +180,7 @@ def format_termination(state: chess.Board) -> str:
         return "stalemate"
     elif state.is_insufficient_material():
         return "insufficient_material"
-    elif state.is_fifty_moves():
+    elif state.halfmove_clock >= 100:
         return "fifty_moves"
     elif state.is_repetition(3):
         return "threefold_repetition"

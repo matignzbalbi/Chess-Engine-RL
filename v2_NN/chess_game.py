@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import numpy as np
 import chess
 from move_mapping import MoveMapper
@@ -13,7 +16,7 @@ class ChessGame:
         self.move_mapper = MoveMapper(include_queen_promotions=include_queen_promotions)
         self.action_size = self.move_mapper.action_size
         
-        print(f" Action size: {self.action_size}")
+        logging.info(f" Action size: {self.action_size}")
 
     def get_initial_state(self):
         return chess.Board()
@@ -56,7 +59,7 @@ class ChessGame:
             return 0, True
         if state.is_insufficient_material():
             return 0, True
-        if state.is_fifty_moves():
+        if state.halfmove_clock >= 100:
             return 0, True
         if state.is_fivefold_repetition():
             return 0, True
@@ -96,8 +99,8 @@ class ChessGame:
     
     def render(self, state):
 
-        print(state)
-        print()
+        logging.info(state)
+        logging.info() # type: ignore
     
     def get_move_from_action(self, state, action):
      

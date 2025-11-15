@@ -1,0 +1,6 @@
+chess==1.11.2
+glicko2==2.1.0
+numpy==2.3.4
+pygame==2.6.1
+torch==2.8.0
+tqdm==4.67.1

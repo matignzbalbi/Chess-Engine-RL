@@ -17,10 +17,7 @@ GAMES_PER_PAIR = 40
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def load_model_from_path(path, game):
-    """
-    Carga modelo intentando detectar num_hidden automáticamente desde checkpoint,
-    o usando archivo *_config.json si existe.
-    """
+  
     import json
     default_config = {"num_resBlocks": 5, "num_hidden": 64}
     config_path = os.path.splitext(path)[0] + "_config.json"

@@ -1,6 +1,5 @@
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 import os
 import json
 import torch
@@ -97,12 +96,12 @@ if __name__ == "__main__":
     logging.info("Cargando modelos...")
 
     # Rutas
-    RUTA_MODELO_A = r"C:\Users\julia\OneDrive\Escritorio\AjedrezPosta\UNLu-MCTSNN\v2_NN\pytorch_files\model_1.pt"
-    RUTA_CONFIG_A = r"C:\Users\julia\OneDrive\Escritorio\AjedrezPosta\UNLu-MCTSNN\v2_NN\pytorch_files\model_1_config.json"
+    RUTA_MODELO_A = r"C:\Users\mrgnz\OneDrive\Escritorio\AI-MTCS-NN\pytorch_files\model_0.pt"
+    RUTA_CONFIG_A = r"C:\Users\mrgnz\OneDrive\Escritorio\AI-MTCS-NN\pytorch_files\model_0_config.json"
 
     # Si solo vas a comparar un modelo, podés repetir:
-    RUTA_MODELO_B = r"C:\Users\julia\OneDrive\Escritorio\AjedrezPosta\UNLu-MCTSNN\v2_NN\pytorch_files\model_4.pt"
-    RUTA_CONFIG_B = r"C:\Users\julia\OneDrive\Escritorio\AjedrezPosta\UNLu-MCTSNN\v2_NN\pytorch_files\model_4_config.json"
+    RUTA_MODELO_B = r"C:\Users\mrgnz\OneDrive\Escritorio\AI-MTCS-NN\pytorch_files\model_0.pt"
+    RUTA_CONFIG_B = r"C:\Users\mrgnz\OneDrive\Escritorio\AI-MTCS-NN\pytorch_files\model_0_config.json"
 
 
     # Cargar configs

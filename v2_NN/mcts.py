@@ -79,7 +79,7 @@ class Node:
                 except (ValueError, Exception) as e:
                     # Ignorar movimientos que fallen
                     import sys
-                    logging.info(f"Acción {action} falló: {e}", file=sys.stderr)
+                    logging.info(f"Acción {action} falló: {e}", file=sys.stderr) # type: ignore
                     continue
             
     def backpropagate(self, value):

@@ -1,0 +1,112 @@
+{
+  "startBlock.1": {
+    "total_neurons": 2048,
+    "dead_neurons": 0,
+    "dead_percentage": 0.0,
+    "nearly_dead": 1005,
+    "nearly_dead_percentage": 49.072265625,
+    "sparsity": 0.0,
+    "mean_activation": 0.01011642999947071,
+    "std_activation": 0.6408959031105042,
+    "max_activation": 4.164756774902344
+  },
+  "startBlock.2": {
+    "total_neurons": 2048,
+    "dead_neurons": 1,
+    "dead_percentage": 0.048828125,
+    "nearly_dead": 10,
+    "nearly_dead_percentage": 0.48828125,
+    "sparsity": 49.6552734375,
+    "mean_activation": 0.32398784160614014,
+    "std_activation": 0.370588093996048,
+    "max_activation": 4.164756774902344
+  },
+  "backBone.0.bn1": {
+    "total_neurons": 2048,
+    "dead_neurons": 0,
+    "dead_percentage": 0.0,
+    "nearly_dead": 1080,
+    "nearly_dead_percentage": 52.734375,
+    "sparsity": 0.0,
+    "mean_activation": -0.020599132403731346,
+    "std_activation": 0.6456797122955322,
+    "max_activation": 4.442105770111084
+  },
+  "backBone.0.bn2": {
+    "total_neurons": 2048,
+    "dead_neurons": 0,
+    "dead_percentage": 0.0,
+    "nearly_dead": 682,
+    "nearly_dead_percentage": 33.30078125,
+    "sparsity": 0.0,
+    "mean_activation": 0.2562256455421448,
+    "std_activation": 0.7561800479888916,
+    "max_activation": 5.689115047454834
+  },
+  "backBone.1.bn1": {
+    "total_neurons": 2048,
+    "dead_neurons": 0,
+    "dead_percentage": 0.0,
+    "nearly_dead": 1080,
+    "nearly_dead_percentage": 52.734375,
+    "sparsity": 0.0,
+    "mean_activation": -0.0036951079964637756,
+    "std_activation": 0.6021879315376282,
+    "max_activation": 4.504730701446533
+  },
+  "backBone.1.bn2": {
+    "total_neurons": 2048,
+    "dead_neurons": 0,
+    "dead_percentage": 0.0,
+    "nearly_dead": 454,
+    "nearly_dead_percentage": 22.16796875,
+    "sparsity": 0.0,
+    "mean_activation": 0.5817999839782715,
+    "std_activation": 0.8313378095626831,
+    "max_activation": 9.199972152709961
+  },
+  "policyHead.1": {
+    "total_neurons": 2048,
+    "dead_neurons": 0,
+    "dead_percentage": 0.0,
+    "nearly_dead": 1096,
+    "nearly_dead_percentage": 53.515625,
+    "sparsity": 0.0,
+    "mean_activation": -0.022085145115852356,
+    "std_activation": 0.5748754143714905,
+    "max_activation": 4.748458385467529
+  },
+  "policyHead.2": {
+    "total_neurons": 2048,
+    "dead_neurons": 12,
+    "dead_percentage": 0.5859375,
+    "nearly_dead": 71,
+    "nearly_dead_percentage": 3.466796875,
+    "sparsity": 50.8310546875,
+    "mean_activation": 0.297621488571167,
+    "std_activation": 0.3154204189777374,
+    "max_activation": 4.748458385467529
+  },
+  "valueHead.1": {
+    "total_neurons": 192,
+    "dead_neurons": 0,
+    "dead_percentage": 0.0,
+    "nearly_dead": 56,
+    "nearly_dead_percentage": 29.166666666666668,
+    "sparsity": 0.0,
+    "mean_activation": 0.26494747400283813,
+    "std_activation": 0.4734697639942169,
+    "max_activation": 3.2629597187042236
+  },
+  "valueHead.2": {
+    "total_neurons": 192,
+    "dead_neurons": 2,
+    "dead_percentage": 1.0416666666666665,
+    "nearly_dead": 13,
+    "nearly_dead_percentage": 6.770833333333333,
+    "sparsity": 33.4375,
+    "mean_activation": 0.46875032782554626,
+    "std_activation": 0.3052842915058136,
+    "max_activation": 3.2629597187042236
+  }
+}

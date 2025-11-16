@@ -1,6 +1,6 @@
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+import intel_extension_for_pytorch as ipex # type: ignore
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -24,8 +24,23 @@ class AlphaZero:
         self.args = args
 
         # Configurar device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Intel GPU (XPU) support with fallback to CPU
+        if torch.xpu.is_available():
+            self.device = torch.device("xpu")
+            logging.info("Usando Intel GPU (XPU)")
+        else:
+            self.device = torch.device("cpu")
+            logging.info("Intel GPU no disponible — usando CPU")
+
         self.model.to(self.device)
+
+        # Optimización Intel IPEX
+        try:
+            self.model, self.optimizer = ipex.optimize(self.model, optimizer=self.optimizer, dtype=torch.float32)
+            logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX)")
+        except Exception as e:
+            logging.warning(f"No se pudo optimizar con IPEX: {e}")
+
         logging.info(f"Usando device: {self.device}")
 
         # MCTS

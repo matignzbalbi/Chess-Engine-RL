@@ -16,6 +16,15 @@ from pathlib import Path
 import json
 from datetime import datetime
 
+# Importar IPEX al inicio
+try:
+    import intel_extension_for_pytorch as ipex # type: ignore
+    HAS_IPEX = True
+    logging.info(f"✓ Intel Extension for PyTorch {ipex.__version__} detectado")
+except ImportError:
+    HAS_IPEX = False
+    logging.warning("⚠️ Intel Extension for PyTorch NO encontrado")
+
 # Importar utilidades distribuidas
 try:
     from ddp_utils import ( # type: ignore
@@ -50,11 +59,32 @@ class AlphaZero:
                 logging.info(f"Proceso {self.rank}/{self.world_size}: usando XPU:{self.local_rank}")
             else:
                 # Single GPU o no distribuido
-                self.device = torch.device('xpu:0' if torch.xpu.is_available() else 'cpu')
-                self.device_type = 'xpu' if torch.xpu.is_available() else 'cpu'
-                logging.info(f"Modo single-GPU: {self.device}")
+                if HAS_IPEX and torch.xpu.is_available():
+                    self.device = torch.device('xpu:0')
+                    self.device_type = 'xpu'
+                    logging.info(f"Modo single-GPU: XPU:0")
+                else:
+                    self.device = torch.device('cpu')
+                    self.device_type = 'cpu'
+                    logging.info(f"Modo CPU")
             
-            # Mover modelo al device
+            # CRÍTICO: Optimizar con IPEX ANTES de mover a dispositivo
+            if self.device_type == 'xpu' and HAS_IPEX:
+                try:
+                    logging.info("Optimizando modelo con IPEX...")
+                    self.model, self.optimizer = ipex.optimize(
+                        self.model, 
+                        optimizer=self.optimizer,
+                        dtype=torch.float32
+                    )
+                    logging.info("✓ Modelo y optimizer optimizados con IPEX")
+                except Exception as e:
+                    logging.error(f"❌ Error optimizando con IPEX: {e}")
+                    logging.error("Fallback a CPU")
+                    self.device = torch.device('cpu')
+                    self.device_type = 'cpu'
+            
+            # Ahora SÍ mover al device
             self.model = self.model.to(self.device)
             
             # Envolver con DDP si es multi-GPU
@@ -62,32 +92,36 @@ class AlphaZero:
                 self.model = wrap_model_ddp(self.model, self.device, self.device_type, self.local_rank)
                 if is_main_process():
                     logging.info(f"✓ Entrenamiento distribuido: {self.world_size} GPUs Intel")
-            else:
-                # Optimizar con IPEX para single-GPU
-                try:
-                    import intel_extension_for_pytorch as ipex # type: ignore
-                    self.model = ipex.optimize(self.model, dtype=torch.float32)
-                    logging.info("✓ Modelo optimizado con IPEX")
-                except Exception as e:
-                    logging.warning(f"No se pudo optimizar con IPEX: {e}")
         else:
             # Fallback: sin DDP
             self.rank = 0
             self.world_size = 1
             self.local_rank = 0
             
-            try:
-                import intel_extension_for_pytorch as ipex # type: ignore
-                if torch.xpu.is_available():
-                    self.device = torch.device('xpu:0')
-                    self.device_type = 'xpu'
-                else:
+            # Verificar disponibilidad de XPU
+            if HAS_IPEX and torch.xpu.is_available():
+                self.device = torch.device('xpu:0')
+                self.device_type = 'xpu'
+                
+                # CRÍTICO: Optimizar con IPEX ANTES de mover
+                try:
+                    logging.info("Optimizando modelo con IPEX...")
+                    self.model, self.optimizer = ipex.optimize(
+                        self.model,
+                        optimizer=self.optimizer,
+                        dtype=torch.float32
+                    )
+                    logging.info("✓ Modelo y optimizer optimizados con IPEX")
+                except Exception as e:
+                    logging.error(f"❌ Error optimizando con IPEX: {e}")
+                    logging.error("Fallback a CPU")
                     self.device = torch.device('cpu')
                     self.device_type = 'cpu'
-            except:
+            else:
                 self.device = torch.device('cpu')
                 self.device_type = 'cpu'
             
+            # Mover a device
             self.model = self.model.to(self.device)
             logging.info(f"✓ Usando device: {self.device}")
 
@@ -144,7 +178,6 @@ class AlphaZero:
     
     def _estimate_checkpoint_size(self):
         try:
-            # Obtener modelo sin wrapper si es DDP
             actual_model = self.model.module if hasattr(self.model, 'module') else self.model
             model_params = sum(p.numel() * 4 for p in actual_model.parameters())
             optimizer_params = model_params * 2
@@ -155,6 +188,7 @@ class AlphaZero:
             return 100
     
     def _safe_save_checkpoint(self, obj, filepath, description="checkpoint"):
+        """Guardado seguro compatible con XPU/CUDA/CPU"""
         
         estimated_size = self._estimate_checkpoint_size()
         available_space = self._get_available_disk_space(self.checkpoint_dir)
@@ -229,6 +263,7 @@ class AlphaZero:
                 pass
     
     def _save_checkpoint_bundle(self, iteration):
+        """Solo el proceso principal guarda checkpoints"""
         if not self._is_main():
             return True
         
@@ -252,7 +287,7 @@ class AlphaZero:
             logging.info(f"✓ Modelo guardado ({size_mb:.1f} MB)")
             success_count += 1
         else:
-            logging.info(f" Falló guardado de modelo")
+            logging.info(f"❌ Falló guardado de modelo")
         
         # Guardar optimizer
         logging.info(f"Guardando optimizer...")
@@ -261,7 +296,7 @@ class AlphaZero:
             logging.info(f"✓ Optimizer guardado ({size_mb:.1f} MB)")
             success_count += 1
         else:
-            logging.info(f" Falló guardado de optimizer")
+            logging.info(f"❌ Falló guardado de optimizer")
         
         # Guardar configuración
         logging.info(f"Guardando configuración...")
@@ -280,32 +315,29 @@ class AlphaZero:
                 'args': self.args
             }
             
-            try:
-                import intel_extension_for_pytorch as ipex # type: ignore
+            if HAS_IPEX:
                 config['ipex_version'] = ipex.__version__
-            except:
-                pass
             
             temp_config = config_path + ".tmp"
             with open(temp_config, 'w') as f:
                 json.dump(config, f, indent=2)
             
             shutil.move(temp_config, config_path)
-            logging.info(f"Configuración guardada")
+            logging.info(f"✓ Configuración guardada")
             success_count += 1
             
         except Exception as e:
-            logging.info(f"Falló guardado de configuración: {e}")
+            logging.info(f"❌ Falló guardado de configuración: {e}")
         
         # Resultado final
         if success_count == total_saves:
-            logging.info(f"Checkpoint completo guardado exitosamente")
+            logging.info(f"✅ Checkpoint completo guardado exitosamente")
             return True
         elif success_count > 0:
-            logging.info(f"Checkpoint guardado parcialmente ({success_count}/{total_saves})")
+            logging.info(f"⚠️ Checkpoint guardado parcialmente ({success_count}/{total_saves})")
             return False
         else:
-            logging.info(f"Falló completamente el guardado del checkpoint")
+            logging.info(f"❌ Falló completamente el guardado del checkpoint")
             return False
 
     def selfPlay(self, iteration=0, game_id=0):
@@ -393,7 +425,6 @@ class AlphaZero:
                         board_fen
                     ))
 
-                # Solo el proceso principal guarda logs
                 if self._is_main():
                     try:
                         from game_logger import format_termination
@@ -448,7 +479,6 @@ class AlphaZero:
             total_value_loss += value_loss.item()
             num_batches += 1
 
-        # Promediar losses entre todos los procesos
         avg_policy_loss = total_policy_loss / num_batches if num_batches > 0 else 0.0
         avg_value_loss = total_value_loss / num_batches if num_batches > 0 else 0.0
         
@@ -479,7 +509,6 @@ class AlphaZero:
             memory = []
             self.model.eval()
 
-            # Self-play
             if self._is_main():
                 logging.info(f"\nGenerando datos con self-play ({self.args['num_selfPlay_iterations']} partidas)")
             
@@ -487,13 +516,11 @@ class AlphaZero:
                 game_memory = self.selfPlay(iteration=iteration, game_id=selfPlay_iteration)
                 memory += game_memory
 
-            # Sincronizar procesos después de self-play
             self._barrier()
 
             if self._is_main():
                 logging.info(f"✓ Generados {len(memory)} estados de entrenamiento")
 
-                # Mostrar resumen
                 summary = self.logger.get_game_summary(iteration)
                 if summary:
                     logging.info(f"\nResumen de partidas:")
@@ -506,7 +533,6 @@ class AlphaZero:
                         except Exception:
                             pass
 
-            # Entrenamiento
             self.model.train()
             
             if self._is_main():
@@ -520,19 +546,16 @@ class AlphaZero:
                           f"Policy Loss = {avg_policy_loss:.4f}, "
                           f"Value Loss = {avg_value_loss:.4f}")
 
-            # Sincronizar antes de guardar
             self._barrier()
 
-            # Guardar checkpoint (solo proceso principal)
             should_save = (iteration + 1) % SAVE_EVERY == 0 or iteration == self.args['num_iterations'] - 1
             
             if should_save:
                 success = self._save_checkpoint_bundle(iteration)
                 
                 if self._is_main() and not success:
-                    logging.info(f"No se pudo guardar checkpoint de iteración {iteration}")
+                    logging.info(f"⚠️ No se pudo guardar checkpoint de iteración {iteration}")
             
-            # Sincronizar después de guardar
             self._barrier()
             
             if self._is_main():
@@ -540,11 +563,10 @@ class AlphaZero:
         
         if self._is_main():
             logging.info("\n" + "="*70)
-            logging.info("ENTRENAMIENTO COMPLETADO")
+            logging.info("✅ ENTRENAMIENTO COMPLETADO")
             logging.info("="*70)
             self._print_final_summary()
         
-        # Cleanup distribuido
         if HAS_DDP_UTILS and self.world_size > 1:
             cleanup_distributed()
     

@@ -23,21 +23,24 @@ class AlphaZero:
         self.game = game
         self.args = args
 
-        # Configurar device
-        # Intel GPU (XPU) support with fallback to CPU
-        if torch.xpu.is_available():
+        # Verificar múltiples GPUs
+        if torch.xpu.is_available() and torch.xpu.device_count() > 1:
             self.device = torch.device("xpu")
-            logging.info("Usando Intel GPU (XPU)")
+            self.model = torch.nn.DataParallel(self.model)
+            logging.info(f"Usando {torch.xpu.device_count()} GPUs en paralelo (DataParallel)")
+        elif torch.xpu.is_available():
+            self.device = torch.device("xpu")
+            logging.info("Usando 1 Intel GPU")
         else:
             self.device = torch.device("cpu")
-            logging.info("Intel GPU no disponible — usando CPU")
+            logging.info("Usando CPU")
 
         self.model.to(self.device)
 
-        # Optimización Intel IPEX
+        # Optimización IPEX
         try:
             self.model, self.optimizer = ipex.optimize(self.model, optimizer=self.optimizer, dtype=torch.float32)
-            logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX)")
+            logging.info("Modelo optimizado con IPEX")
         except Exception as e:
             logging.warning(f"No se pudo optimizar con IPEX: {e}")
 
@@ -221,10 +224,13 @@ class AlphaZero:
         
         logging.info(f"Guardando configuración")
         try:
+            # Obtener el modelo real (puede estar envuelto en DataParallel)
+            actual_model = self.model.module if isinstance(self.model, torch.nn.DataParallel) else self.model
+            
             config = {
                 'iteration': iteration,
-                'num_resBlocks': len(self.model.backBone),
-                'num_hidden': self.model.startBlock[0].out_channels,
+                'num_resBlocks': len(actual_model.backBone),  # ← Cambiado aquí
+                'num_hidden': actual_model.startBlock[0].out_channels,  # ← Y aquí
                 'action_size': self.game.action_size,
                 'training_games': (iteration + 1) * self.args['num_selfPlay_iterations'],
                 'timestamp': datetime.now().isoformat(),

@@ -97,7 +97,12 @@ class MCTS:
         self.game = game
         self.args = args
         self.model = model
-        self.device = device if device is not None else torch.device("cpu")
+        self.device = (
+            device
+            if device is not None
+            else torch.device("xpu" if torch.xpu.is_available() else "cpu")
+        )
+
         
     @torch.no_grad()
     def search(self, state):

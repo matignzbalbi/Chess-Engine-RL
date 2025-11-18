@@ -8,16 +8,16 @@ from alpha_zero import AlphaZero
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)
-model = create_chess_model(game=game, num_resBlocks=2, num_hidden=32)
+model = create_chess_model(game=game, num_resBlocks=4, num_hidden=64)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
 args = {
     'C': 2,
-    'num_searches': 10,
-    'num_selfPlay_iterations': 2,
-    'num_iterations': 1,
-    'num_epochs': 1,
-    'batch_size': 16,
+    'num_searches': 100,
+    'num_selfPlay_iterations': 10,
+    'num_iterations': 3,
+    'num_epochs': 2,
+    'batch_size': 32,
     'save_every': 1
 }
 

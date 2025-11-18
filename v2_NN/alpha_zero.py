@@ -42,12 +42,14 @@ except ImportError:
     logging.warning("ddp_utils.py no encontrado. Ejecutando en modo single-GPU")
 
 class AlphaZero:
-    def __init__(self, model, optimizer, game, args):
+    def __init__(self, model, optimizer, game, args, rank=0, world_size=1):
         self.model = model
         self.optimizer = optimizer
         self.game = game
         self.args = args
-
+        self.rank = rank
+        self.world_size = world_size
+        
         # Setup distribuido si está disponible
         if HAS_DDP_UTILS:
             self.rank, self.world_size, self.local_rank = setup_distributed(backend='ccl')
@@ -289,8 +291,8 @@ class AlphaZero:
         try:
             config = {
                 'iteration': iteration,
-                'num_resBlocks': len(model_to_save.backBone),
-                'num_hidden': model_to_save.startBlock[0].out_channels,
+                'num_resBlocks': len(model_to_save.backBone), # type: ignore
+                'num_hidden': model_to_save.startBlock[0].out_channels, # type: ignore
                 'action_size': self.game.action_size,
                 'training_games': (iteration + 1) * self.args['num_selfPlay_iterations'],
                 'timestamp': datetime.now().isoformat(),

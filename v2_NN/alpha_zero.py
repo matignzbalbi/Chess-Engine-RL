@@ -68,24 +68,27 @@ class AlphaZero:
                     self.device_type = 'cpu'
                     logging.info(f"Modo CPU")
             
-            # CRÍTICO: Optimizar con IPEX ANTES de mover a dispositivo
+            # VERSIÓN SIMPLIFICADA: Solo mover a device, sin ipex.optimize()
             if self.device_type == 'xpu' and HAS_IPEX:
                 try:
-                    logging.info("Optimizando modelo con IPEX...")
-                    self.model, self.optimizer = ipex.optimize(
-                        self.model, 
-                        optimizer=self.optimizer,
-                        dtype=torch.float32
-                    )
-                    logging.info("✓ Modelo y optimizer optimizados con IPEX")
+                    logging.info("Moviendo modelo a XPU con IPEX...")
+                    
+                    # Primero mover a XPU
+                    self.model = self.model.to(self.device)
+                    
+                    # Intentar optimización simple (sin prepack)
+                    # Solo para inference, no para training
+                    # self.model = ipex.optimize(self.model, dtype=torch.float32, level="O0")
+                    
+                    logging.info("✓ Modelo en XPU")
                 except Exception as e:
-                    logging.error(f"❌ Error optimizando con IPEX: {e}")
+                    logging.error(f"❌ Error con XPU: {e}")
                     logging.error("Fallback a CPU")
                     self.device = torch.device('cpu')
                     self.device_type = 'cpu'
-            
-            # Ahora SÍ mover al device
-            self.model = self.model.to(self.device)
+                    self.model = self.model.to(self.device)
+            else:
+                self.model = self.model.to(self.device)
             
             # Envolver con DDP si es multi-GPU
             if self.world_size > 1:
@@ -103,30 +106,25 @@ class AlphaZero:
                 self.device = torch.device('xpu:0')
                 self.device_type = 'xpu'
                 
-                # CRÍTICO: Optimizar con IPEX ANTES de mover
                 try:
-                    logging.info("Optimizando modelo con IPEX...")
-                    self.model, self.optimizer = ipex.optimize(
-                        self.model,
-                        optimizer=self.optimizer,
-                        dtype=torch.float32
-                    )
-                    logging.info("✓ Modelo y optimizer optimizados con IPEX")
+                    logging.info("Moviendo modelo a XPU...")
+                    self.model = self.model.to(self.device)
+                    logging.info("✓ Modelo en XPU")
                 except Exception as e:
-                    logging.error(f"❌ Error optimizando con IPEX: {e}")
+                    logging.error(f"❌ Error con XPU: {e}")
                     logging.error("Fallback a CPU")
                     self.device = torch.device('cpu')
                     self.device_type = 'cpu'
+                    self.model = self.model.to(self.device)
             else:
                 self.device = torch.device('cpu')
                 self.device_type = 'cpu'
+                self.model = self.model.to(self.device)
             
-            # Mover a device
-            self.model = self.model.to(self.device)
             logging.info(f"✓ Usando device: {self.device}")
 
         # MCTS
-        self.mcts = MCTS(game, args, self.model, device=self.device, device_type=self.device_type) # type: ignore
+        self.mcts = MCTS(game, args, self.model, device=self.device, device_type=self.device_type)
 
         # Logger (solo proceso principal)
         self.logger = GameLogger()
@@ -188,8 +186,6 @@ class AlphaZero:
             return 100
     
     def _safe_save_checkpoint(self, obj, filepath, description="checkpoint"):
-        """Guardado seguro compatible con XPU/CUDA/CPU"""
-        
         estimated_size = self._estimate_checkpoint_size()
         available_space = self._get_available_disk_space(self.checkpoint_dir)
         
@@ -197,7 +193,6 @@ class AlphaZero:
             logging.info(f"ADVERTENCIA: Poco espacio en disco")
             logging.info(f"Disponible: {available_space:.1f} MB")
             logging.info(f"Necesario: {estimated_size * 2:.1f} MB")
-            logging.info(f"NO se guardó {description}")
             return False
         
         try:
@@ -206,8 +201,8 @@ class AlphaZero:
                 backup_path = filepath + ".backup"
                 try:
                     shutil.copy2(filepath, backup_path)
-                except Exception as e:
-                    logging.debug(f"No se pudo crear backup de {filepath}: {e}")
+                except Exception:
+                    pass
             
             temp_fd, temp_path = tempfile.mkstemp(
                 suffix='.pt',
@@ -216,7 +211,7 @@ class AlphaZero:
             )
             os.close(temp_fd)
             
-            # IMPORTANTE: Mover a CPU antes de guardar
+            # Mover a CPU antes de guardar
             if isinstance(obj, dict) and all(isinstance(v, torch.Tensor) for v in obj.values()):
                 obj_cpu = {k: v.cpu() for k, v in obj.items()}
                 torch.save(obj_cpu, temp_path)
@@ -233,7 +228,7 @@ class AlphaZero:
             shutil.move(temp_path, filepath)
             
             if not os.path.exists(filepath):
-                raise IOError(f"Archivo final {filepath} no existe después de mover")
+                raise IOError(f"Archivo final {filepath} no existe")
             
             if backup_path and os.path.exists(backup_path):
                 try:
@@ -263,7 +258,6 @@ class AlphaZero:
                 pass
     
     def _save_checkpoint_bundle(self, iteration):
-        """Solo el proceso principal guarda checkpoints"""
         if not self._is_main():
             return True
         
@@ -277,28 +271,20 @@ class AlphaZero:
         optimizer_path = os.path.join(self.checkpoint_dir, f"{base_name}_optimizer.pt")
         config_path = os.path.join(self.checkpoint_dir, f"{base_name}_config.json")
         
-        # Obtener modelo sin DDP wrapper
         model_to_save = self.model.module if hasattr(self.model, 'module') else self.model
         
-        # Guardar modelo
         logging.info(f"Guardando modelo...")
         if self._safe_save_checkpoint(model_to_save.state_dict(), model_path, f"modelo {base_name}"):
             size_mb = os.path.getsize(model_path) / (1024 ** 2)
             logging.info(f"✓ Modelo guardado ({size_mb:.1f} MB)")
             success_count += 1
-        else:
-            logging.info(f"❌ Falló guardado de modelo")
         
-        # Guardar optimizer
         logging.info(f"Guardando optimizer...")
         if self._safe_save_checkpoint(self.optimizer.state_dict(), optimizer_path, f"optimizer {base_name}"):
             size_mb = os.path.getsize(optimizer_path) / (1024 ** 2)
             logging.info(f"✓ Optimizer guardado ({size_mb:.1f} MB)")
             success_count += 1
-        else:
-            logging.info(f"❌ Falló guardado de optimizer")
         
-        # Guardar configuración
         logging.info(f"Guardando configuración...")
         try:
             config = {
@@ -327,17 +313,13 @@ class AlphaZero:
             success_count += 1
             
         except Exception as e:
-            logging.info(f"❌ Falló guardado de configuración: {e}")
+            logging.info(f"❌ Falló configuración: {e}")
         
-        # Resultado final
         if success_count == total_saves:
-            logging.info(f"✅ Checkpoint completo guardado exitosamente")
+            logging.info(f"✅ Checkpoint completo")
             return True
-        elif success_count > 0:
-            logging.info(f"⚠️ Checkpoint guardado parcialmente ({success_count}/{total_saves})")
-            return False
         else:
-            logging.info(f"❌ Falló completamente el guardado del checkpoint")
+            logging.info(f"⚠️ Checkpoint parcial ({success_count}/{total_saves})")
             return False
 
     def selfPlay(self, iteration=0, game_id=0):
@@ -405,8 +387,6 @@ class AlphaZero:
                     try:
                         if isinstance(played_move, chess.Move):
                             move_uci = played_move.uci()
-                        elif isinstance(played_move, str):
-                            move_uci = played_move
                         else:
                             move_uci = str(played_move)
                     except Exception:
@@ -429,26 +409,22 @@ class AlphaZero:
                     try:
                         from game_logger import format_termination
                         self.logger.log_training_data(iteration, game_id, training_samples, self.game) # type: ignore
-                    except Exception as e:
-                        logging.error(f"Error guardando training data: {e}")
+                        
+                        if value == 0:
+                            winner = 'draw'
+                        else:
+                            winner = 'white' if (state.turn == False) else 'black'
 
-                    if value == 0:
-                        winner = 'draw'
-                    else:
-                        winner = 'white' if (state.turn == False) else 'black'
-
-                    from game_logger import format_termination
-                    termination = format_termination(state)
-                    stats = {
-                        'total_moves': move_count,
-                        'winner': winner,
-                        'termination_reason': termination,
-                        'unique_positions': len(set(s[6] for s in training_samples if s[6] is not None))
-                    }
-                    try:
+                        termination = format_termination(state)
+                        stats = {
+                            'total_moves': move_count,
+                            'winner': winner,
+                            'termination_reason': termination,
+                            'unique_positions': len(set(s[6] for s in training_samples if s[6] is not None))
+                        }
                         self.logger.log_game_stats(iteration, game_id, stats) # type: ignore
                     except Exception as e:
-                        logging.error(f"Error guardando stats de la partida: {e}")
+                        logging.error(f"Error guardando logs: {e}")
 
                 return returnMemory
 
@@ -496,7 +472,7 @@ class AlphaZero:
             logging.info(f"CONFIGURACIÓN DE ENTRENAMIENTO")
             logging.info(f"{'='*70}")
             logging.info(f"Device: {self.device} ({self.device_type})")
-            logging.info(f"Procesos distribuidos: {self.world_size}")
+            logging.info(f"Procesos: {self.world_size}")
             logging.info(f"Checkpoint cada {SAVE_EVERY} iteraciones")
             logging.info(f"{'='*70}\n")
         
@@ -510,7 +486,7 @@ class AlphaZero:
             self.model.eval()
 
             if self._is_main():
-                logging.info(f"\nGenerando datos con self-play ({self.args['num_selfPlay_iterations']} partidas)")
+                logging.info(f"\nSelf-play: {self.args['num_selfPlay_iterations']} partidas")
             
             for selfPlay_iteration in range(self.args['num_selfPlay_iterations']):
                 game_memory = self.selfPlay(iteration=iteration, game_id=selfPlay_iteration)
@@ -519,42 +495,32 @@ class AlphaZero:
             self._barrier()
 
             if self._is_main():
-                logging.info(f"✓ Generados {len(memory)} estados de entrenamiento")
+                logging.info(f"✓ Estados generados: {len(memory)}")
 
                 summary = self.logger.get_game_summary(iteration)
                 if summary:
-                    logging.info(f"\nResumen de partidas:")
+                    logging.info(f"\nResumen:")
                     logging.info(f"   Blancas: {summary.get('white_wins', 0)} | "
                           f"Negras: {summary.get('black_wins', 0)} | "
                           f"Empates: {summary.get('draws', 0)}")
-                    if 'avg_moves' in summary:
-                        try:
-                            logging.info(f"   Promedio de movimientos: {summary['avg_moves']:.1f}")
-                        except Exception:
-                            pass
 
             self.model.train()
             
             if self._is_main():
-                logging.info(f"\nEntrenando modelo ({self.args['num_epochs']} épocas)")
+                logging.info(f"\nEntrenando: {self.args['num_epochs']} épocas")
 
             for epoch in range(self.args['num_epochs']):
                 avg_policy_loss, avg_value_loss = self.train(memory)
                 
                 if self._is_main() and ((epoch + 1) % 10 == 0 or epoch == 0):
-                    print(f"   Época {epoch + 1}/{self.args['num_epochs']}: "
-                          f"Policy Loss = {avg_policy_loss:.4f}, "
-                          f"Value Loss = {avg_value_loss:.4f}")
+                    print(f"   Época {epoch + 1}: Policy={avg_policy_loss:.4f}, Value={avg_value_loss:.4f}")
 
             self._barrier()
 
             should_save = (iteration + 1) % SAVE_EVERY == 0 or iteration == self.args['num_iterations'] - 1
             
             if should_save:
-                success = self._save_checkpoint_bundle(iteration)
-                
-                if self._is_main() and not success:
-                    logging.info(f"⚠️ No se pudo guardar checkpoint de iteración {iteration}")
+                self._save_checkpoint_bundle(iteration)
             
             self._barrier()
             
@@ -565,7 +531,6 @@ class AlphaZero:
             logging.info("\n" + "="*70)
             logging.info("✅ ENTRENAMIENTO COMPLETADO")
             logging.info("="*70)
-            self._print_final_summary()
         
         if HAS_DDP_UTILS and self.world_size > 1:
             cleanup_distributed()

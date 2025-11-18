@@ -6,19 +6,17 @@ import math
 import torch
 
 class Node:
- 
     def __init__(self, game, args, state, parent=None, action_taken=None, prior=0):
         self.game = game
         self.args = args
         self.state = state
         self.parent = parent
         self.action_taken = action_taken
-        self.prior = prior  # P(s,a) - probabilidad del modelo para este movimiento
+        self.prior = prior
         
         self.children = []
-        
         self.visit_count = 0
-        self.value_sum = 0  # Suma de valores desde la perspectiva del jugador actual
+        self.value_sum = 0
         
     def is_fully_expanded(self):
         return len(self.children) > 0
@@ -36,16 +34,11 @@ class Node:
         return best_child
     
     def get_ucb(self, child):
-       
         if child.visit_count == 0:
             q_value = 0
         else:
-            # IMPORTANTE: child.value_sum está desde la perspectiva del hijo
-            # Pero queremos Q desde la perspectiva del padre
-            # Por eso tomamos el NEGATIVO
             q_value = -child.value_sum / child.visit_count
         
-        # Término de exploración
         exploration = self.args['C'] * child.prior * (
             math.sqrt(self.visit_count) / (child.visit_count + 1)
         )
@@ -53,19 +46,14 @@ class Node:
         return q_value + exploration
     
     def expand(self, policy):
-     
-        # Obtener máscara de movimientos legales
         valid_moves = self.game.get_valid_moves(self.state)
         
         for action, prob in enumerate(policy):
-            # Solo expandir acciones con probabilidad > 0 Y legales
             if prob > 0 and valid_moves[action] > 0:
                 try:
-                    # Crear nuevo estado aplicando el movimiento
                     child_state = self.state.copy()
                     child_state = self.game.get_next_state(child_state, action, 1)
                 
-                    # Crear nodo hijo
                     child = Node(
                         game=self.game,
                         args=self.args,
@@ -76,36 +64,39 @@ class Node:
                     )
                     self.children.append(child)
                     
-                except (ValueError, Exception) as e:
-                    # Ignorar movimientos que fallen
-                    import sys
-                    logging.info(f"Acción {action} falló: {e}", file=sys.stderr) # type: ignore
+                except (ValueError, Exception):
                     continue
             
     def backpropagate(self, value):
-    
         self.value_sum += value
         self.visit_count += 1
         
-        # Propagar al padre con signo invertido
         if self.parent is not None:
             self.parent.backpropagate(-value)
 
+
 class MCTS:
+    """
+    Monte Carlo Tree Search compatible con Intel GPU (XPU), CUDA y CPU.
+    """
     
-    def __init__(self, game, args, model, device=None):
+    def __init__(self, game, args, model, device=None, device_type='cpu'):
         self.game = game
         self.args = args
         self.model = model
-        self.device = (
-            device
-            if device is not None
-            else torch.device("xpu" if torch.xpu.is_available() else "cpu")
-        )
-
+        
+        # Si no se especifica device, usar CPU por defecto
+        if device is None:
+            device = torch.device('cpu')
+            device_type = 'cpu'
+        
+        self.device = device
+        self.device_type = device_type
         
     @torch.no_grad()
     def search(self, state):
+        """Búsqueda MCTS compatible con todos los dispositivos"""
+        
         # Crear nodo raíz
         root = Node(self.game, self.args, state)
         
@@ -115,7 +106,6 @@ class MCTS:
         
         # Verificar que se hayan creado hijos
         if len(root.children) == 0:
-            # No hay movimientos legales
             valid_moves = self.game.get_valid_moves(state)
             if valid_moves.sum() == 0:
                 return np.zeros(self.game.action_size)
@@ -125,30 +115,30 @@ class MCTS:
         for search_iteration in range(self.args['num_searches']):
             node = root
             
-            # 1. SELECTION: Bajar por el árbol usando UCB
+            # 1. SELECTION
             while node.is_fully_expanded(): # type: ignore
                 node = node.select() # type: ignore
                 
                 if len(node.children) == 0: # type: ignore
                     break
             
-            # 2. EVALUACIÓN: Obtener valor del nodo
+            # 2. EVALUACIÓN
             value, is_terminal = self.game.get_value_and_terminated(
-                node.state,  # type: ignore
+                node.state, # type: ignore
                 node.action_taken # type: ignore
             )
             
             if is_terminal:
-    
                 value = -value
             else:
-                # 3. EXPANSION: Si no es terminal, expandir
+                # 3. EXPANSION
                 policy, value = self._evaluate(node.state) # type: ignore
                 node.expand(policy) # type: ignore
   
             # 4. BACKPROPAGATION
             node.backpropagate(value) # type: ignore
         
+        # Calcular probabilidades de acción
         action_probs = np.zeros(self.game.action_size)
         for child in root.children:
             action_probs[child.action_taken] = child.visit_count
@@ -156,7 +146,6 @@ class MCTS:
         if action_probs.sum() > 0:
             action_probs /= action_probs.sum()
         else:
-            # Fallback
             valid_moves = self.game.get_valid_moves(state)
             if valid_moves.sum() > 0:
                 action_probs = valid_moves / valid_moves.sum()
@@ -164,14 +153,22 @@ class MCTS:
         return action_probs
     
     def _evaluate(self, state):
-
+        """
+        Evalúa el estado con el modelo.
+        Compatible con XPU, CUDA y CPU.
+        """
+        
         # Codificar estado
         encoded_state = self.game.get_encoded_state(state)
+        
+        # Crear tensor y moverlo al dispositivo correcto
         state_tensor = torch.tensor(
             encoded_state, 
-            dtype=torch.float32, 
-            device=self.device
+            dtype=torch.float32
         ).unsqueeze(0)
+        
+        # Mover a dispositivo de forma segura
+        state_tensor = state_tensor.to(self.device)
         
         # Forward pass
         policy_logits, value = self.model(state_tensor)
@@ -187,7 +184,6 @@ class MCTS:
         if policy_sum > 0:
             policy /= policy_sum
         else:
-            # Sin movimientos legales válidos
             if valid_moves.sum() > 0:
                 policy = valid_moves / np.sum(valid_moves)
             else:
@@ -197,5 +193,3 @@ class MCTS:
         value = value.item()
         
         return policy, value
-
-

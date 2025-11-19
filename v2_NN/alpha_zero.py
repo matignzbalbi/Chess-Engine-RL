@@ -20,10 +20,10 @@ from datetime import datetime
 try:
     import intel_extension_for_pytorch as ipex # type: ignore
     HAS_IPEX = True
-    logging.info(f"✓ Intel Extension for PyTorch {ipex.__version__} detectado")
+    logging.info(f"Intel Extension for PyTorch {ipex.__version__} detectado")
 except ImportError:
     HAS_IPEX = False
-    logging.warning("⚠️ Intel Extension for PyTorch NO encontrado")
+    logging.warning("Intel Extension for PyTorch NO encontrado")
 
 # Importar utilidades distribuidas
 try:

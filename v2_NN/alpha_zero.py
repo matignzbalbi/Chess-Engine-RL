@@ -51,7 +51,16 @@ class AlphaZero:
         logging.info(f"Logs guardándose en: {self.logger.log_dir}/")
         
         # Verificar directorio de checkpoints al inicio
-        self.checkpoint_dir = "pytorch_files"
+        slurm_id = os.getenv("SLURM_JOB_ID")
+
+        if slurm_id is not None:
+            # Carpeta única por job
+            self.checkpoint_dir = f"pytorch_files_{slurm_id}"
+        else:
+            # Fallback cuando lo ejecutás a mano
+            self.checkpoint_dir = "pytorch_files_local"
+
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
         self._verify_checkpoint_directory()
 
 

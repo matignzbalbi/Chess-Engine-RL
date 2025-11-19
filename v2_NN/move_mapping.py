@@ -190,7 +190,7 @@ class MoveMapper:
             except ValueError as e:
                 # Logging mejorado
                 import sys
-                logging.info(f"Advertencia: {e}", file=sys.stderr)
+                logging.info(f"Advertencia: {e}", file=sys.stderr) # type: ignore
                 continue
         
         return mask
@@ -211,7 +211,7 @@ class MoveMapper:
         if unmapped_moves:
             import sys
             logging.info(f"{len(unmapped_moves)} movimientos legales no mapeados: {unmapped_moves[:5]}", 
-                  file=sys.stderr)
+                  file=sys.stderr) # type: ignore
         
         return actions
 

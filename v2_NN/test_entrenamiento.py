@@ -8,17 +8,17 @@ from alpha_zero import AlphaZero
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)
-model = create_chess_model(game=game, num_resBlocks=2, num_hidden=32)
+model = create_chess_model(game=game, num_resBlocks=10, num_hidden=256)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
 args = {
     'C': 2,
-    'num_searches': 10,
-    'num_selfPlay_iterations': 2,
-    'num_iterations': 1,
-    'num_epochs': 1,
-    'batch_size': 16,
-    'save_every': 1
+    'num_searches': 180,
+    'num_selfPlay_iterations': 45,
+    'num_iterations': 35,
+    'num_epochs': 7,
+    'batch_size': 192,
+    'save_every': 3
 }
 
 logging.info(f"Action size: {game.action_size}")

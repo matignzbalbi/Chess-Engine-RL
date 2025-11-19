@@ -932,8 +932,8 @@ def main():
 
     model_path = difficulty_menu()
 
-    NUM_RESBLOCKS = 2
-    NUM_HIDDEN = 32
+    NUM_RESBLOCKS = 4
+    NUM_HIDDEN = 64
     NUM_SEARCHES = 100
 
     # Verificar modelo seleccionado

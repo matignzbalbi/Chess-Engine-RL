@@ -18,7 +18,7 @@ args = {
     'num_iterations': 35,
     'num_epochs': 7,
     'batch_size': 192,
-    'save_every': 3
+    'save_every': 1
 }
 
 logging.info(f"Action size: {game.action_size}")

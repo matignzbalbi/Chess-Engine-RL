@@ -1,6 +1,5 @@
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 import csv
 import os
 import numpy as np
@@ -11,12 +10,28 @@ import chess
 class GameLogger:
 
     def __init__(self, log_dir: str = "game_logs") -> None:
-        self.log_dir = log_dir
-        os.makedirs(log_dir, exist_ok=True)
+        # Obtener SLURM_JOB_ID si existe
+        slurm_id = os.getenv("SLURM_JOB_ID")
+        
+        if slurm_id is not None:
+            # Carpeta y archivos únicos por job
+            self.log_dir = f"{log_dir}_{slurm_id}"
+            suffix = f"_{slurm_id}"
+        else:
+            # Fallback cuando se ejecuta a mano
+            self.log_dir = f"{log_dir}_local"
+            suffix = "_local"
+        
+        os.makedirs(self.log_dir, exist_ok=True)
 
-        # Archivos CSV (almacenamiento local)
-        self.training_file = os.path.join(log_dir, "training_data.csv")
-        self.stats_file = os.path.join(log_dir, "game_stats.csv")
+        # Archivos CSV con sufijo único
+        self.training_file = os.path.join(self.log_dir, f"training_data{suffix}.csv")
+        self.stats_file = os.path.join(self.log_dir, f"game_stats{suffix}.csv")
+
+        logging.info(f"📊 GameLogger inicializado:")
+        logging.info(f"   Directorio: {self.log_dir}/")
+        logging.info(f"   Training: {os.path.basename(self.training_file)}")
+        logging.info(f"   Stats: {os.path.basename(self.stats_file)}")
 
         self._init_files()
 
@@ -31,6 +46,7 @@ class GameLogger:
                     "iteration", "game_id", "timestamp", "total_moves",
                     "winner", "termination_reason", "unique_positions"
                 ])
+            logging.info(f"✓ Creado: {self.stats_file}")
 
         # Archivo de datos de entrenamiento
         if not os.path.exists(self.training_file):
@@ -41,6 +57,7 @@ class GameLogger:
                     "move_algebraic_notation", "move_confidence",
                     "outcome", "top_5_moves", "top_5_probs", "board_fen"
                 ])
+            logging.info(f"✓ Creado: {self.training_file}")
 
     # ---------------------------------------------------------------------
     def log_game_stats(self, iteration: int, game_id: str, stats: dict) -> None:

@@ -13,8 +13,8 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
 args = {
     'C': 2.5, # Subimos
-    'num_searches': 400, # Subimos
-    'num_selfPlay_iterations': 45, 
+    'num_searches': 250, # Subimos
+    'num_selfPlay_iterations': 10, 
     'num_iterations': 35, 
     'num_epochs': 10, # +3
     'batch_size': 192,

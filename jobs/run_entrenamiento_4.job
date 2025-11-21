@@ -6,7 +6,7 @@
 #SBATCH --partition=gpunode
 #SBATCH --gres=gpu:1        
 #SBATCH --ntasks=1          
-#SBATCH --cpus-per-task=256   
+#SBATCH --cpus-per-task=192   
 #SBATCH --time=02:00:00     
 
 module purge
@@ -16,4 +16,4 @@ export CCL_ROOT=$VIRTUAL_ENV
 
 source /home/mgbalbi/entorno_intel_gpu/bin/activate
 
-python /home/mgbalbi/UNLu-MCTSNN/v2_NN/entrenamiento_3.py
+python /home/mgbalbi/UNLu-MCTSNN/v2_NN/entrenamiento_4.py

@@ -16,6 +16,8 @@ from pathlib import Path
 import json
 from datetime import datetime
 
+
+
 class AlphaZero:
     def __init__(self, model, optimizer, game, args):
         self.model = model
@@ -308,13 +310,34 @@ class AlphaZero:
                 returnMemory = []
                 for idx, (hist_state, hist_action_probs, hist_turn, hist_chosen_action) in enumerate(play_history):
                     if value == 0:
-                        hist_outcome = 0
+                        # Empate - penalización ligera para incentivar decisión
+                        hist_outcome = -0.1  # Penalización pequeña por empate
                     else:
                         winner_is_white = (state.turn == False)
-                        if hist_turn == winner_is_white:
-                            hist_outcome = 1
+                        is_winner = (hist_turn == winner_is_white)
+                        
+                        if is_winner:
+                            # VICTORIA - recompensa con bonus por velocidad
+                            base_reward = 1.0
+                            
+                            # Bonus por ganar rápido (máximo +30% si gana en <30 movimientos)
+                            speed_bonus = max(0, (100 - move_count) / 100) * 0.3
+                            
+                            # Bonus por posición (más reward a movimientos finales que sellaron la victoria)
+                            position_factor = (idx + 1) / len(play_history)  # 0.0 a 1.0
+                            position_bonus = position_factor * 0.2  # Hasta +20% para moves finales
+                            
+                            hist_outcome = base_reward * (1 + speed_bonus + position_bonus)
+                            hist_outcome = min(hist_outcome, 1.5)  # Cap máximo en 1.5
                         else:
-                            hist_outcome = -1
+                            # DERROTA - penalización más fuerte si perdió rápido
+                            base_penalty = -1.0
+                            
+                            # Penalización extra por perder rápido
+                            speed_penalty = max(0, (100 - move_count) / 100) * 0.3
+                            
+                            hist_outcome = base_penalty * (1 + speed_penalty)
+                            hist_outcome = max(hist_outcome, -1.5)  # Cap mínimo en -1.5
 
                     encoded = self.game.get_encoded_state(hist_state)
                     returnMemory.append((encoded, hist_action_probs, hist_outcome))

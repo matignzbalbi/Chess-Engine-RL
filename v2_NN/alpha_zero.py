@@ -492,28 +492,42 @@ class AlphaZero:
                     except Exception:
                         pass
 
-            # Entrenamiento
-            self.model.train()
-            logging.info(f"\nEntrenando modelo ({self.args['num_epochs']} épocas)")
+        # Entrenamiento
+        self.model.train()
+        logging.info(f"\nEntrenando modelo ({self.args['num_epochs']} épocas)")
 
-            for epoch in range(self.args['num_epochs']):
-                avg_policy_loss, avg_value_loss = self.train(memory)
-                if (epoch + 1) % 10 == 0 or epoch == 0:
-                    print(f"   Época {epoch + 1}/{self.args['num_epochs']}: "
-                          f"Policy Loss = {avg_policy_loss:.4f}, "
-                          f"Value Loss = {avg_value_loss:.4f}")
+        # Variables para trackear el loss final
+        final_policy_loss = 0.0
+        final_value_loss = 0.0
 
-            # Guardar checkpoint si corresponde
-            should_save = (iteration + 1) % SAVE_EVERY == 0 or iteration == self.args['num_iterations'] - 1
+        for epoch in range(self.args['num_epochs']):
+            avg_policy_loss, avg_value_loss = self.train(memory)
             
-            if should_save:
-                success = self._save_checkpoint_bundle(iteration)
-                
-                if not success:
-                    logging.info(f"ADVERTENCIA: No se pudo guardar checkpoint de iteración {iteration}")
-                    logging.info(f"El entrenamiento continuará, pero se perdió este punto de guardado")
+            # Guardar los loss de la última época
+            final_policy_loss = avg_policy_loss
+            final_value_loss = avg_value_loss
             
-            logging.info(f"\n Iteración {iteration + 1} completada")
+            if (epoch + 1) % 10 == 0 or epoch == 0:
+                logging.info(f"   Época {epoch + 1}/{self.args['num_epochs']}: "
+                            f"Policy Loss = {avg_policy_loss:.4f}, "
+                            f"Value Loss = {avg_value_loss:.4f}")
+
+        # ← AGREGAR ESTO (el logging que faltaba):
+        logging.info(f"\n   Loss final de la iteración:")
+        logging.info(f"   Policy Loss: {final_policy_loss:.4f}")
+        logging.info(f"   Value Loss: {final_value_loss:.4f}")
+
+        # Guardar checkpoint si corresponde
+        should_save = (iteration + 1) % SAVE_EVERY == 0 or iteration == self.args['num_iterations'] - 1
+
+        if should_save:
+            success = self._save_checkpoint_bundle(iteration)
+            
+            if not success:
+                logging.info(f"ADVERTENCIA: No se pudo guardar checkpoint de iteración {iteration}")
+                logging.info(f"El entrenamiento continuará, pero se perdió este punto de guardado")
+
+        logging.info(f"\n✓ Iteración {iteration + 1} completada")
         
         # Resumen final
         logging.info("\n" + "="*70)

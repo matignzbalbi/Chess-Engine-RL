@@ -15,8 +15,26 @@ import tempfile
 from pathlib import Path
 import json
 from datetime import datetime
+from torch.utils.data import Dataset, DataLoader
 
 
+class ChessDataset(Dataset):
+    def __init__(self, memory):
+        self.memory = memory
+
+    def __len__(self):
+        return len(self.memory)
+
+    def __getitem__(self, idx):
+        state, policy_targets, value_targets = self.memory[idx]
+        
+        # Convertimos a tipos correctos aquí para que el DataLoader 
+        # pueda armar los tensores automáticamente de forma eficiente.
+        return (
+            np.array(state, dtype=np.float32), 
+            np.array(policy_targets, dtype=np.float32), 
+            np.array(value_targets, dtype=np.float32)
+        )
 
 class AlphaZero:
     def __init__(self, model, optimizer, game, args):
@@ -38,7 +56,7 @@ class AlphaZero:
 
         # Optimización Intel IPEX
         try:
-            self.model, self.optimizer = ipex.optimize(self.model, optimizer=self.optimizer, dtype=torch.float32)
+            self.model, self.optimizer = ipex.optimize(self.model, optimizer=self.optimizer, dtype=torch.bfloat16)
             logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX)")
         except Exception as e:
             logging.warning(f"No se pudo optimizar con IPEX: {e}")
@@ -273,14 +291,14 @@ class AlphaZero:
         play_history = []
 
         while True:
-            action_probs = self.mcts.search(state)
+            action_probs = self.mcts.search(state, add_noise=True)
             if not isinstance(action_probs, np.ndarray):
                 action_probs = np.array(action_probs, dtype=np.float32)
 
             # Temperatura decreciente con el avance de la partida
-            if move_count < 15:
+            if move_count < 30:
                 temperature = 1.0
-            elif move_count < 40:
+            elif move_count < 60:
                 temperature = 0.5
             else:
                 temperature = 0.1
@@ -307,41 +325,30 @@ class AlphaZero:
             value, is_terminal = self.game.get_value_and_terminated(state, action)
 
             if is_terminal:
+               if is_terminal:
+                if value == 0:
+                    winner = 'draw'
+                else:
+    
+                    winner = 'white' if (state.turn == False) else 'black'
+
                 returnMemory = []
+                
                 for idx, (hist_state, hist_action_probs, hist_turn, hist_chosen_action) in enumerate(play_history):
-                    if value == 0:
-                        # Empate - penalización ligera para incentivar decisión
-                        hist_outcome = -0.1  # Penalización pequeña por empate
-                    else:
-                        winner_is_white = (state.turn == False)
-                        is_winner = (hist_turn == winner_is_white)
+                    
+                    if winner == 'draw':
+                        hist_outcome = 0.0
                         
-                        if is_winner:
-                            # VICTORIA - recompensa con bonus por velocidad
-                            base_reward = 1.0
-                            
-                            # Bonus por ganar rápido (máximo +30% si gana en <30 movimientos)
-                            speed_bonus = max(0, (100 - move_count) / 100) * 0.3
-                            
-                            # Bonus por posición (más reward a movimientos finales que sellaron la victoria)
-                            position_factor = (idx + 1) / len(play_history)  # 0.0 a 1.0
-                            position_bonus = position_factor * 0.2  # Hasta +20% para moves finales
-                            
-                            hist_outcome = base_reward * (1 + speed_bonus + position_bonus)
-                            hist_outcome = min(hist_outcome, 1.5)  # Cap máximo en 1.5
-                        else:
-                            # DERROTA - penalización más fuerte si perdió rápido
-                            base_penalty = -1.0
-                            
-                            # Penalización extra por perder rápido
-                            speed_penalty = max(0, (100 - move_count) / 100) * 0.3
-                            
-                            hist_outcome = base_penalty * (1 + speed_penalty)
-                            hist_outcome = max(hist_outcome, -1.5)  # Cap mínimo en -1.5
+                    elif winner == 'white':
+                     
+                        hist_outcome = 1.0 if hist_turn else -1.0
+                        
+                    else: 
+                        hist_outcome = -1.0 if hist_turn else 1.0
 
                     encoded = self.game.get_encoded_state(hist_state)
                     returnMemory.append((encoded, hist_action_probs, hist_outcome))
-
+                                    
                     try:
                         played_action = int(hist_chosen_action)
                     except Exception:
@@ -396,25 +403,43 @@ class AlphaZero:
 
                 return returnMemory
 
-    def train(self, memory):
-        random.shuffle(memory)
+    def train(self, memory):        
+        # Crear el Dataset y el DataLoader
+        dataset = ChessDataset(memory)
+
+        dataloader = DataLoader(
+            dataset, 
+            batch_size=self.args['batch_size'], 
+            shuffle=True, 
+            num_workers=8, 
+            pin_memory=True
+        )
+
         total_policy_loss = 0.0
         total_value_loss = 0.0
         num_batches = 0
 
-        for batchIdx in range(0, len(memory), self.args['batch_size']):
-            sample = memory[batchIdx:batchIdx + self.args['batch_size']]
-            state_batch, policy_targets_batch, value_targets_batch = zip(*sample)
+        self.model.train()
 
-            state = torch.tensor(np.array(state_batch), dtype=torch.float32, device=self.device)
-            policy_targets = torch.tensor(np.array(policy_targets_batch), dtype=torch.float32, device=self.device)
-            value_targets = torch.tensor(np.array(value_targets_batch).reshape(-1, 1), dtype=torch.float32, device=self.device)
+        # El bucle ahora es mucho más limpio y rápido
+        for batch in dataloader:
+            state_batch, policy_targets_batch, value_targets_batch = batch
 
+            # Mover a dispositivo (XPU/GPU)
+            # non_blocking=True permite que la transferencia sea asíncrona
+            state = state_batch.to(self.device, non_blocking=True)
+            policy_targets = policy_targets_batch.to(self.device, non_blocking=True)
+            value_targets = value_targets_batch.to(self.device, non_blocking=True).unsqueeze(1)
+
+            # Forward pass
             out_policy, out_value = self.model(state)
+            
+            # Loss calculation
             policy_loss = -torch.sum(policy_targets * F.log_softmax(out_policy, dim=1)) / policy_targets.size(0)
             value_loss = F.mse_loss(out_value, value_targets)
             loss = policy_loss + value_loss
 
+            # Backward pass
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()

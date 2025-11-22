@@ -105,12 +105,27 @@ class MCTS:
 
         
     @torch.no_grad()
-    def search(self, state):
-        # Crear nodo raíz
+    def search(self, state, add_noise=False):
         root = Node(self.game, self.args, state)
         
         # Expandir raíz inmediatamente con el policy del modelo
         policy, _ = self._evaluate(state)
+        
+        if add_noise:
+            epsilon = 0.25
+            alpha = 0.3  # 0.3 es estándar para Ajedrez (0.03 para Go)
+            noise = np.random.dirichlet([alpha] * len(policy))
+            
+            # Mezclar la predicción del modelo con ruido
+            policy = (1 - epsilon) * policy + epsilon * noise
+            
+            # Renormalizar (por seguridad, aunque dirichlet suma 1)
+            valid_moves = self.game.get_valid_moves(state)
+            policy *= valid_moves
+            if policy.sum() > 0:
+                policy /= policy.sum()
+        # ---------------------------------------
+
         root.expand(policy)
         
         # Verificar que se hayan creado hijos

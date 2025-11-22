@@ -180,21 +180,34 @@ class MCTS:
     
     def _evaluate(self, state):
 
-        # Codificar estado
+        # 1. Obtener estado codificado
         encoded_state = self.game.get_encoded_state(state)
+        
+        # 2. Asegurar que sea Numpy array
+        encoded_state = np.array(encoded_state)
+        
+        if encoded_state.shape == (8, 8, 12):
+            encoded_state = np.transpose(encoded_state, (2, 0, 1))
+        
+        # 4. Crear Tensor en el dispositivo correcto
         state_tensor = torch.tensor(
             encoded_state, 
-            dtype=torch.float32, 
             device=self.device
-        ).unsqueeze(0)
+        ).unsqueeze(0).contiguous()
         
-        # Forward pass
+        target_dtype = next(self.model.parameters()).dtype
+        state_tensor = state_tensor.to(dtype=target_dtype)
+        # ------------------------------------------------------------------
+
+        # 6. Forward pass
+        self.model.eval()
+        
         policy_logits, value = self.model(state_tensor)
         
-        # Convertir logits a probabilidades
-        policy = torch.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()
+        policy = torch.softmax(policy_logits, dim=1).squeeze(0).float().cpu().numpy()
+        value = value.item() # .item() maneja la conversión automáticamente
         
-        # Enmascarar movimientos ilegales
+        # 8. Enmascarar movimientos ilegales
         valid_moves = self.game.get_valid_moves(state)
         policy *= valid_moves
         
@@ -202,14 +215,10 @@ class MCTS:
         if policy_sum > 0:
             policy /= policy_sum
         else:
-            # Sin movimientos legales válidos
             if valid_moves.sum() > 0:
                 policy = valid_moves / np.sum(valid_moves)
             else:
                 policy = np.ones(self.game.action_size) / self.game.action_size
-        
-        # Extraer valor escalar
-        value = value.item()
         
         return policy, value
 

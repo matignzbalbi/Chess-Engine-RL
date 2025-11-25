@@ -60,10 +60,18 @@ class AlphaZero:
 
         # Optimización Intel IPEX (BFloat16 para Ponte Vecchio)
         try:
-            self.model, self.optimizer = ipex.optimize(self.model, optimizer=self.optimizer, dtype=torch.bfloat16)
-            logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX) - BFloat16")
+    # ...
+         logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX) - BFloat16")
         except Exception as e:
+            # ...
             logging.warning(f"No se pudo optimizar con IPEX: {e}")
+
+        # LA CLAVE: Mover el estado del optimizador al dispositivo XPU/CPU
+        # Esto corrige el error 'xpu:0 and cpu' en el optimizador.
+        for state in self.optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(self.device)
 
         logging.info(f"Usando device: {self.device}")
 
@@ -280,10 +288,10 @@ class AlphaZero:
         for batch in dataloader:
             state_batch, policy_targets_batch, value_targets_batch = batch
 
-            # Mover a device Y convertir al tipo del modelo
+             # 1. State: Mover y convertir dtype (CRUCIAL)
             state = state_batch.to(self.device, non_blocking=True).to(dtype=target_dtype)
             
-            # Targets se quedan en float32 para precisión numérica en el Loss
+            # 2. Targets: Mover a dispositivo (manteniendo float32, si es necesario)
             policy_targets = policy_targets_batch.to(self.device, non_blocking=True)
             value_targets = value_targets_batch.to(self.device, non_blocking=True).unsqueeze(1)
 

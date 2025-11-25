@@ -77,9 +77,22 @@ def load_checkpoint(checkpoint_path, game, device='cpu'):
     # 5. Cargar estado del optimizer (si existe)
     if os.path.exists(optimizer_path):
         try:
+            # Cargar el estado. La clave 'device' asegura que los datos se lean bien.
             optimizer_state = torch.load(optimizer_path, map_location=device)
             optimizer.load_state_dict(optimizer_state)
             logging.info(f"✓ Estado del optimizer cargado")
+
+            # =======================================================
+            # 💡 CORRECCIÓN PARA EL ERROR XPU/CPU
+            # Mover los tensores internos del optimizer al dispositivo correcto (XPU)
+            # Esto es crucial al cargar un checkpoint en un nuevo dispositivo acelerado.
+            logging.info(f"Moviendo estado interno del optimizer a {device}...")
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        # Forzar el movimiento a XPU/CUDA/CPU
+                        state[k] = v.to(device)
+            logging.info(f"✓ Estado interno del optimizer movido a {device}")
         except Exception as e:
             logging.warning(f"⚠️  No se pudo cargar optimizer: {e}")
             logging.info(f"   Se continuará con optimizer reiniciado")

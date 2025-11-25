@@ -184,9 +184,9 @@ class AlphaZero:
 
             # Temperatura
             if move_count < 30:
-                temperature = 1.0
+                temperature = 1
             else:
-                temperature = 0.1 # Bajamos temperatura más tarde
+                temperature = 1 # Bajamos temperatura más tarde
 
             # Aplicar temperatura
             if temperature == 0:

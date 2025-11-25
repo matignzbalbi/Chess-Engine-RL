@@ -198,12 +198,12 @@ if __name__ == "__main__":
     continue_training_from_checkpoint(
         checkpoint_path=CHECKPOINT_PATH,
         additional_iterations=200,      # 20 iteraciones más
-        num_selfPlay_iterations=25,    # 20 partidas por iteración
-        num_searches=250,              # 200 búsquedas MCTS
+        num_selfPlay_iterations=15,    # 20 partidas por iteración
+        num_searches=500,              # 200 búsquedas MCTS
         num_epochs=10,                 # 10 épocas
         batch_size=512,                # Batch size
-        save_every=2,                  # Guardar cada 5 iteraciones
-        C=4.0                          # Exploración MCTS
+        save_every=1,                  # Guardar cada 5 iteraciones
+        C=6.0                          # Exploración MCTS
     )
     
     logging.info("\n✓ Script finalizado")

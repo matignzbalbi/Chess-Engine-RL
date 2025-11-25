@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --account=PCI_146
+#SBATCH --job-name=c6
+#SBATCH --output=c6_%j.out
+#SBATCH --error=c6_%j.err
+#SBATCH --partition=gpunode
+#SBATCH --gres=gpu:1        
+#SBATCH --ntasks=1          
+#SBATCH --cpus-per-task=64   
+#SBATCH --time=48:00:00     
+
+module purge
+
+export OCL_ICD_VENDORS=/etc/OpenCL/vendors
+export CCL_ROOT=$VIRTUAL_ENV
+
+source /home/mgbalbi/entorno_intel_gpu/bin/activate
+
+python /home/mgbalbi/UNLu-MCTSNN/v2_NN/checkpoint.py

@@ -184,8 +184,8 @@ if __name__ == "__main__":
     # 2. Configurar parámetros de continuación
     continue_training_from_checkpoint(
         checkpoint_path=CHECKPOINT_PATH,
-        additional_iterations=10,      # 20 iteraciones más
-        num_selfPlay_iterations=20,    # 20 partidas por iteración
+        additional_iterations=50,      # 20 iteraciones más
+        num_selfPlay_iterations=10,    # 20 partidas por iteración
         num_searches=200,              # 200 búsquedas MCTS
         num_epochs=10,                 # 10 épocas
         batch_size=512,                # Batch size

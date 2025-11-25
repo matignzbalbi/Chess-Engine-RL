@@ -186,7 +186,7 @@ class AlphaZero:
             if move_count < 30:
                 temperature = 1
             else:
-                temperature = 1 # Bajamos temperatura más tarde
+                temperature = 0.5 # Bajamos temperatura más tarde
 
             # Aplicar temperatura
             if temperature == 0:
@@ -210,18 +210,29 @@ class AlphaZero:
             if is_terminal:
                 returnMemory = []
                 
-                # 1. DETERMINAR GANADOR (FUERA DEL BUCLE)
+                # 1. DETERMINAR GANADOR
                 if value == 0:
                     winner = 'draw'
                 else:
-                    # Si state.turn es False (Negras), significa que Blancas movió y ganó.
                     winner = 'white' if (state.turn == False) else 'black'
 
-                # 2. ASIGNAR RECOMPENSAS
+                # 2. ASIGNAR RECOMPENSAS (CON FACTOR DE DESPRECIO)
+                # -----------------------------------------------------
+                # Configuración del "Factor de Desprecio" (Contempt)
+                # Un valor negativo pequeño castiga al modelo por no ganar.
+                # Valor recomendado: -0.05 a -0.1.
+                # Si es muy bajo (ej. -0.5), el modelo se suicidará para evitar tablas largas.
+                DRAW_PENALTY = -0.1 
+                # -----------------------------------------------------
+
                 for idx, (hist_state, hist_action_probs, hist_turn, hist_chosen_action) in enumerate(play_history):
                     
                     if winner == 'draw':
-                        hist_outcome = 0.0 # Empate es 0
+                        # AQUÍ ESTÁ EL CAMBIO:
+                        # En lugar de 0.0, le damos un castigo leve.
+                        # Esto fuerza al ValueHead a predecir valores negativos para tablas,
+                        # obligando al MCTS a buscar alternativas ganadoras.
+                        hist_outcome = DRAW_PENALTY
                         
                     elif winner == 'white':
                         # Ganó blanco: +1 si era turno blanco, -1 si era negro

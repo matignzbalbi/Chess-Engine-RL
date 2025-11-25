@@ -12,13 +12,13 @@ model = create_chess_model(game=game, num_resBlocks=12, num_hidden=256) #
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4) 
 
 args = {
-    'C': 3, # Subimos
-    'num_searches': 400, # Subimos
-    'num_selfPlay_iterations': 30, 
+    'C': 5, # Subimos
+    'num_searches': 350, # Subimos
+    'num_selfPlay_iterations': 20, 
     'num_iterations': 100, 
     'num_epochs': 10, # +3
     'batch_size': 512,
-    'save_every': 3
+    'save_every': 2
 }
 
 logging.info(f"Action size: {game.action_size}")

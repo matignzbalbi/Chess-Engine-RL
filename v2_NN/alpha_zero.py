@@ -15,28 +15,7 @@ import tempfile
 from pathlib import Path
 import json
 from datetime import datetime
-from torch.utils.data import Dataset, DataLoader
 
-# ==========================================
-# 1. CLASE DATASET OPTIMIZADA
-# ==========================================
-class ChessDataset(Dataset):
-    def __init__(self, memory):
-        self.memory = memory
-
-    def __len__(self):
-        return len(self.memory)
-
-    def __getitem__(self, idx):
-        state, policy_targets, value_targets = self.memory[idx]
-        
-        # Devolvemos numpy arrays float32. 
-        # La conversión a BFloat16 se hará en la GPU dentro del loop de train.
-        return (
-            np.array(state, dtype=np.float32), 
-            np.array(policy_targets, dtype=np.float32), 
-            np.array(value_targets, dtype=np.float32)
-        )
 
 # ==========================================
 # 2. CLASE ALPHAZERO PRINCIPAL
@@ -60,8 +39,8 @@ class AlphaZero:
 
         # Optimización Intel IPEX (BFloat16 para Ponte Vecchio)
         try:
-    # ...
-         logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX) - BFloat16")
+            self.model, self.optimizer = ipex.optimize(self.model, optimizer=self.optimizer, dtype=torch.float32)
+            logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX)")
         except Exception as e:
             # ...
             logging.warning(f"No se pudo optimizar con IPEX: {e}")
@@ -176,15 +155,15 @@ class AlphaZero:
         play_history = []
 
         while True:
-            # IMPORTANTE: add_noise=True para exploración
-            action_probs = self.mcts.search(state, add_noise=True)
-            
+            action_probs = self.mcts.search(state)
             if not isinstance(action_probs, np.ndarray):
                 action_probs = np.array(action_probs, dtype=np.float32)
 
-            # Temperatura
-            if move_count < 30:
-                temperature = 1
+            # Temperatura decreciente con el avance de la partida
+            if move_count < 15:
+                temperature = 1.0
+            elif move_count < 40:
+                temperature = 0.5
             else:
                 temperature = 0.5 # Bajamos temperatura más tarde
 
@@ -209,43 +188,40 @@ class AlphaZero:
 
             if is_terminal:
                 returnMemory = []
-                
-                # 1. DETERMINAR GANADOR
-                if value == 0:
-                    winner = 'draw'
-                else:
-                    winner = 'white' if (state.turn == False) else 'black'
-
-                # 2. ASIGNAR RECOMPENSAS (CON FACTOR DE DESPRECIO)
-                # -----------------------------------------------------
-                # Configuración del "Factor de Desprecio" (Contempt)
-                # Un valor negativo pequeño castiga al modelo por no ganar.
-                # Valor recomendado: -0.05 a -0.1.
-                # Si es muy bajo (ej. -0.5), el modelo se suicidará para evitar tablas largas.
-                DRAW_PENALTY = -0.1 
-                # -----------------------------------------------------
-
                 for idx, (hist_state, hist_action_probs, hist_turn, hist_chosen_action) in enumerate(play_history):
-                    
-                    if winner == 'draw':
-                        # AQUÍ ESTÁ EL CAMBIO:
-                        # En lugar de 0.0, le damos un castigo leve.
-                        # Esto fuerza al ValueHead a predecir valores negativos para tablas,
-                        # obligando al MCTS a buscar alternativas ganadoras.
-                        hist_outcome = DRAW_PENALTY
+                    if value == 0:
+                        # Empate - penalización ligera para incentivar decisión
+                        hist_outcome = -0.1  # Penalización pequeña por empate
+                    else:
+                        winner_is_white = (state.turn == False)
+                        is_winner = (hist_turn == winner_is_white)
                         
-                    elif winner == 'white':
-                        # Ganó blanco: +1 si era turno blanco, -1 si era negro
-                        hist_outcome = 1.0 if hist_turn else -1.0
-                        
-                    else: # winner == 'black'
-                        # Ganó negro: -1 si era turno blanco, +1 si era negro
-                        hist_outcome = -1.0 if hist_turn else 1.0
+                        if is_winner:
+                            # VICTORIA - recompensa con bonus por velocidad
+                            base_reward = 1.0
+                            
+                            # Bonus por ganar rápido (máximo +30% si gana en <30 movimientos)
+                            speed_bonus = max(0, (100 - move_count) / 100) * 0.3
+                            
+                            # Bonus por posición (más reward a movimientos finales que sellaron la victoria)
+                            position_factor = (idx + 1) / len(play_history)  # 0.0 a 1.0
+                            position_bonus = position_factor * 0.2  # Hasta +20% para moves finales
+                            
+                            hist_outcome = base_reward * (1 + speed_bonus + position_bonus)
+                            hist_outcome = min(hist_outcome, 1.5)  # Cap máximo en 1.5
+                        else:
+                            # DERROTA - penalización más fuerte si perdió rápido
+                            base_penalty = -1.0
+                            
+                            # Penalización extra por perder rápido
+                            speed_penalty = max(0, (100 - move_count) / 100) * 0.3
+                            
+                            hist_outcome = base_penalty * (1 + speed_penalty)
+                            hist_outcome = max(hist_outcome, -1.5)  # Cap mínimo en -1.5
 
                     encoded = self.game.get_encoded_state(hist_state)
                     returnMemory.append((encoded, hist_action_probs, hist_outcome))
 
-                    # Logging de muestra
                     try:
                         played_action = int(hist_chosen_action)
                         played_move = self.game.get_move_from_action(hist_state, played_action)
@@ -259,63 +235,29 @@ class AlphaZero:
                         ))
                     except Exception: pass
 
-                # Logging final
-                try:
-                    self.logger.log_training_data(iteration, game_id, training_samples, self.game) # type: ignore
-                    stats = {
-                        'total_moves': move_count,
-                        'winner': winner,
-                        'termination_reason': format_termination(state),
-                        'unique_positions': len(set(s[6] for s in training_samples if s[6]))
-                    }
-                    self.logger.log_game_stats(iteration, game_id, stats) # type: ignore
-                except Exception as e:
-                    logging.error(f"Error logging stats: {e}")
+                
 
                 return returnMemory
 
-    # ------------------------------------------------------------------
-    # TRAIN (Corregido: Tipos de Datos y DataLoader)
-    # ------------------------------------------------------------------
-    def train(self, memory):        
-        dataset = ChessDataset(memory)
-        dataloader = DataLoader(
-            dataset, 
-            batch_size=self.args['batch_size'], 
-            shuffle=True, 
-            num_workers=4, 
-            pin_memory=True
-        )
-
+    def train(self, memory):
+        random.shuffle(memory)
         total_policy_loss = 0.0
         total_value_loss = 0.0
         num_batches = 0
 
-        self.model.train()
-        
-        # DETECTAR TIPO DE DATO (Crucial para IPEX BFloat16)
-        target_dtype = next(self.model.parameters()).dtype
+        for batchIdx in range(0, len(memory), self.args['batch_size']):
+            sample = memory[batchIdx:batchIdx + self.args['batch_size']]
+            state_batch, policy_targets_batch, value_targets_batch = zip(*sample)
 
-        for batch in dataloader:
-            state_batch, policy_targets_batch, value_targets_batch = batch
+            state = torch.tensor(np.array(state_batch), dtype=torch.float32, device=self.device)
+            policy_targets = torch.tensor(np.array(policy_targets_batch), dtype=torch.float32, device=self.device)
+            value_targets = torch.tensor(np.array(value_targets_batch).reshape(-1, 1), dtype=torch.float32, device=self.device)
 
-             # 1. State: Mover y convertir dtype (CRUCIAL)
-            state = state_batch.to(self.device, non_blocking=True).to(dtype=target_dtype)
-            
-            # 2. Targets: Mover a dispositivo (manteniendo float32, si es necesario)
-            policy_targets = policy_targets_batch.to(self.device, non_blocking=True)
-            value_targets = value_targets_batch.to(self.device, non_blocking=True).unsqueeze(1)
-
-            # Forward pass
             out_policy, out_value = self.model(state)
-            
-            # Loss calculation (.float() asegura estabilidad si el modelo está en BFloat16)
-            policy_loss = -torch.sum(policy_targets * F.log_softmax(out_policy.float(), dim=1)) / policy_targets.size(0)
-            value_loss = F.mse_loss(out_value.float(), value_targets)
-            
+            policy_loss = -torch.sum(policy_targets * F.log_softmax(out_policy, dim=1)) / policy_targets.size(0)
+            value_loss = F.mse_loss(out_value, value_targets)
             loss = policy_loss + value_loss
 
-            # Backward pass
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()

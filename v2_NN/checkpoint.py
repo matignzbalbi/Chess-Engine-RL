@@ -107,13 +107,13 @@ def load_checkpoint(checkpoint_path, game, device='cpu'):
 
 def continue_training_from_checkpoint(
     checkpoint_path,
-    additional_iterations=10,
+    additional_iterations=100,
     num_selfPlay_iterations=20,
-    num_searches=200,
+    num_searches=300,
     num_epochs=10,
     batch_size=512,
-    save_every=5,
-    C=4.0
+    save_every=2,
+    C=3.0
 ):
 
     
@@ -197,13 +197,13 @@ if __name__ == "__main__":
     # 2. Configurar parámetros de continuación
     continue_training_from_checkpoint(
         checkpoint_path=CHECKPOINT_PATH,
-        additional_iterations=200,      # 20 iteraciones más
-        num_selfPlay_iterations=15,    # 20 partidas por iteración
-        num_searches=500,              # 200 búsquedas MCTS
+        additional_iterations=100,      # 20 iteraciones más
+        num_selfPlay_iterations=20,    # 20 partidas por iteración
+        num_searches=300,              # 200 búsquedas MCTS
         num_epochs=10,                 # 10 épocas
         batch_size=512,                # Batch size
-        save_every=1,                  # Guardar cada 5 iteraciones
-        C=6.0                          # Exploración MCTS
+        save_every=2,                  # Guardar cada 5 iteraciones
+        C=3.0                          # Exploración MCTS
     )
     
     logging.info("\n✓ Script finalizado")

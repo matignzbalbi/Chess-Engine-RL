@@ -13,7 +13,7 @@ class Node:
         self.state = state
         self.parent = parent
         self.action_taken = action_taken
-        self.prior = prior  # P(s,a) - probabilidad del modelo para este movimiento
+        self.prior = prior  
         
         self.children = []
         
@@ -40,12 +40,8 @@ class Node:
         if child.visit_count == 0:
             q_value = 0
         else:
-            # IMPORTANTE: child.value_sum está desde la perspectiva del hijo
-            # Pero queremos Q desde la perspectiva del padre
-            # Por eso tomamos el NEGATIVO
             q_value = -child.value_sum / child.visit_count
         
-        # Término de exploración
         exploration = self.args['C'] * child.prior * (
             math.sqrt(self.visit_count) / (child.visit_count + 1)
         )
@@ -77,7 +73,6 @@ class Node:
                     self.children.append(child)
                     
                 except (ValueError, Exception) as e:
-                    # Ignorar movimientos que fallen
                     import sys
                     logging.info(f"Acción {action} falló: {e}", file=sys.stderr) # type: ignore
                     continue
@@ -87,7 +82,6 @@ class Node:
         self.value_sum += value
         self.visit_count += 1
         
-        # Propagar al padre con signo invertido
         if self.parent is not None:
             self.parent.backpropagate(-value)
 
@@ -124,7 +118,6 @@ class MCTS:
             policy *= valid_moves
             if policy.sum() > 0:
                 policy /= policy.sum()
-        # ---------------------------------------
 
         root.expand(policy)
         
@@ -180,16 +173,13 @@ class MCTS:
     
     def _evaluate(self, state):
 
-        # 1. Obtener estado codificado
         encoded_state = self.game.get_encoded_state(state)
         
-        # 2. Asegurar que sea Numpy array
         encoded_state = np.array(encoded_state)
         
         if encoded_state.shape == (8, 8, 12):
             encoded_state = np.transpose(encoded_state, (2, 0, 1))
         
-        # 4. Crear Tensor en el dispositivo correcto
         state_tensor = torch.tensor(
             encoded_state, 
             device=self.device
@@ -197,7 +187,6 @@ class MCTS:
         
         target_dtype = next(self.model.parameters()).dtype
         state_tensor = state_tensor.to(dtype=target_dtype)
-        # ------------------------------------------------------------------
 
         # 6. Forward pass
         self.model.eval()
@@ -205,9 +194,8 @@ class MCTS:
         policy_logits, value = self.model(state_tensor)
         
         policy = torch.softmax(policy_logits, dim=1).squeeze(0).float().cpu().numpy()
-        value = value.item() # .item() maneja la conversión automáticamente
+        value = value.item() 
         
-        # 8. Enmascarar movimientos ilegales
         valid_moves = self.game.get_valid_moves(state)
         policy *= valid_moves
         

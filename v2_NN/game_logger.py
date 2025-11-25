@@ -10,28 +10,24 @@ import chess
 class GameLogger:
 
     def __init__(self, log_dir: str = "game_logs") -> None:
-        # Obtener SLURM_JOB_ID si existe
         slurm_id = os.getenv("SLURM_JOB_ID")
         
         if slurm_id is not None:
-            # Carpeta y archivos únicos por job
             self.log_dir = f"{log_dir}_{slurm_id}"
             suffix = f"_{slurm_id}"
         else:
-            # Fallback cuando se ejecuta a mano
             self.log_dir = f"{log_dir}_local"
             suffix = "_local"
         
         os.makedirs(self.log_dir, exist_ok=True)
 
-        # Archivos CSV con sufijo único
         self.training_file = os.path.join(self.log_dir, f"training_data{suffix}.csv")
         self.stats_file = os.path.join(self.log_dir, f"game_stats{suffix}.csv")
 
-        logging.info(f"📊 GameLogger inicializado:")
-        logging.info(f"   Directorio: {self.log_dir}/")
-        logging.info(f"   Training: {os.path.basename(self.training_file)}")
-        logging.info(f"   Stats: {os.path.basename(self.stats_file)}")
+        logging.info(f"GameLogger inicializado:")
+        logging.info(f"Directorio: {self.log_dir}/")
+        logging.info(f"Training: {os.path.basename(self.training_file)}")
+        logging.info(f"Stats: {os.path.basename(self.stats_file)}")
 
         self._init_files()
 
@@ -57,7 +53,7 @@ class GameLogger:
                     "move_algebraic_notation", "move_confidence",
                     "outcome", "top_5_moves", "top_5_probs", "board_fen"
                 ])
-            logging.info(f"✓ Creado: {self.training_file}")
+            logging.info(f"Creado: {self.training_file}")
 
     # ---------------------------------------------------------------------
     def log_game_stats(self, iteration: int, game_id: str, stats: dict) -> None:
@@ -75,7 +71,6 @@ class GameLogger:
                 stats.get("unique_positions", 0)
             ])
 
-    # ---------------------------------------------------------------------
     def log_training_data(self, iteration: int, game_id: str, training_samples: list, game_instance) -> None:
      
         with open(self.training_file, "a", newline="", encoding="utf-8") as f:
@@ -91,7 +86,7 @@ class GameLogger:
                     move_san = board.san(move)
                 except Exception as e:
                     move_san = move_uci
-                    logging.error(f" Error al convertir '{move_uci}' a SAN: {e}")
+                    logging.error(f"Error al convertir '{move_uci}' a SAN: {e}")
 
                 # Obtener top 5 movimientos
                 top_5_indices = np.argsort(policy)[-5:][::-1]
@@ -115,11 +110,9 @@ class GameLogger:
                     outcome, top_moves_str, top_probs_str, fen
                 ])
 
-    # ---------------------------------------------------------------------
     def get_game_summary(self, iteration: int) -> dict:
         return self._get_summary_from_csv(iteration)
 
-    # ---------------------------------------------------------------------
     def _get_summary_from_csv(self, iteration: int) -> dict:
         if not os.path.exists(self.stats_file):
             return {}
@@ -154,12 +147,10 @@ class GameLogger:
             "min_moves": int(min(total_moves)) if total_moves else 0,
         }
 
-    # ---------------------------------------------------------------------
     def log_batch_stats(self, iteration: int, stats_list: list) -> None:
         if not stats_list:
             return
 
-        # Guardar en CSV
         with open(self.stats_file, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -175,9 +166,7 @@ class GameLogger:
                     stats.get("unique_positions", 0),
                 ])
 
-    # ---------------------------------------------------------------------
     def close(self) -> None:
-        """Cierra conexiones abiertas (no hace nada sin base de datos)."""
         pass
 
 

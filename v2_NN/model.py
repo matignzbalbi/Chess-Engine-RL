@@ -27,25 +27,21 @@ class ChessResNet(nn.Module):
         super().__init__()
         
         self.game = game
-        self.board_size = game.row_count  # 8 para ajedrez
-        self.action_size = game.action_size  # 4672 para ajedrez
-        
-        # BLOQUE INICIAL
-        # Convierte el input de 12 canales a num_hidden canales
+        self.board_size = game.row_count  
+        self.action_size = game.action_size  
+    
+
         self.startBlock = nn.Sequential(
             nn.Conv2d(input_channels, num_hidden, kernel_size=3, padding=1),
             nn.BatchNorm2d(num_hidden),
             nn.ReLU()
         )
         
-        # BACKBONE - Torre de bloques residuales
-        # Similar a ResNet: permite que la red aprenda características complejas
         self.backBone = nn.ModuleList(
             [ResBlock(num_hidden) for i in range(num_resBlocks)]
         )
         
-        # POLICY HEAD - Predice qué movimiento hacer
-        # Output: probabilidad para cada uno de los 4672 movimientos posibles
+        # POLICY HEAD -
         self.policyHead = nn.Sequential(
             nn.Conv2d(num_hidden, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
@@ -54,8 +50,7 @@ class ChessResNet(nn.Module):
             nn.Linear(32 * self.board_size * self.board_size, self.action_size)
         )
         
-        # VALUE HEAD - Predice quién va ganando
-        # Output: un valor entre -1 (negras ganan) y +1 (blancas ganan)
+        # VALUE HEAD 
         self.valueHead = nn.Sequential(
             nn.Conv2d(num_hidden, 3, kernel_size=3, padding=1),
             nn.BatchNorm2d(3),
@@ -67,16 +62,13 @@ class ChessResNet(nn.Module):
         
     def forward(self, x):
      
-        # 1. Bloque inicial
         x = self.startBlock(x)
         
-        # 2. Bloques residuales
         for resBlock in self.backBone:
             x = resBlock(x)
         
-        # 3. Dos cabezas separadas
-        policy = self.policyHead(x)  # Probabilidades de movimientos
-        value = self.valueHead(x)    # Evaluación de posición
+        policy = self.policyHead(x)  
+        value = self.valueHead(x)    
         
         return policy, value
 
@@ -92,27 +84,6 @@ def create_chess_model(game, num_resBlocks=9, num_hidden=128):
     return model
 
 
-# Función auxiliar para contar parámetros
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-
-if __name__ == "__main__":
-    # Prueba simple del modelo
-    from chess_game import ChessGame
-    
-    game = ChessGame()
-    model = create_chess_model(game, num_resBlocks=4, num_hidden=64)
-    
-    logging.info(model)
-    logging.info(f"\nNúmero de parámetros: {count_parameters(model):,}")
-    
-    # Probar forward pass
-    batch_size = 2
-    dummy_input = torch.randn(batch_size, 12, 8, 8)
-    
-    policy, value = model(dummy_input)
-    logging.info(f"Input shape: {dummy_input.shape}")
-    logging.info(f"Policy output shape: {policy.shape}")  # (2, 4672)
-    logging.info(f"Value output shape: {value.shape}")    # (2, 1)
-    logging.info(f"Value range: [{value.min().item():.3f}, {value.max().item():.3f}]")

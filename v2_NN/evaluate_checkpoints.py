@@ -1,8 +1,5 @@
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# evaluate_checkpoints.py
-# Versión adaptada a la API de tu repo v2_NN (ChessGame, MCTS, model.create_chess_model)
 import os
 import glob
 import torch
@@ -31,9 +28,8 @@ def load_model_from_path(path, game):
             config = json.load(f)
         num_resBlocks = config.get("num_resBlocks", default_config["num_resBlocks"])
         num_hidden = config.get("num_hidden", default_config["num_hidden"])
-        logging.info(f"[INFO] Config encontrada para {path}: {config}")
+        logging.info(f"Config encontrada para {path}: {config}")
     else:
-        # Detectar num_hidden mirando startBlock.0.weight si existe
         detected_hidden = None
         for k, v in sd.items():
             if "startBlock.0.weight" in k or "startBlock.0.conv" in k:
@@ -41,27 +37,24 @@ def load_model_from_path(path, game):
                 break
         if detected_hidden:
             num_hidden = detected_hidden
-            logging.info(f"[INFO] Detectado automáticamente num_hidden={num_hidden} desde {path}")
+            logging.info(f"Detectado automáticamente num_hidden={num_hidden} desde {path}")
         else:
             num_hidden = default_config["num_hidden"]
-            logging.info(f"[WARN] No detectado num_hidden en {path}. Usando {num_hidden}")
+            logging.info(f"No detectado num_hidden en {path}. Usando {num_hidden}")
         num_resBlocks = default_config["num_resBlocks"]
 
-    # Crear el modelo con la firma que usa tu repo
     try:
         model = ChessResNet(game, num_resBlocks, num_hidden)
     except Exception:
-        # Si utilizás una fábrica en model.py (create_chess_model) úsala:
         model = create_chess_model(game, num_resBlocks=num_resBlocks, num_hidden=num_hidden)
 
-    # Intentar cargar
     try:
         model.load_state_dict(sd)
-        logging.info(f"[OK] Modelo cargado completamente desde {path}")
+        logging.info(f"Modelo cargado completamente desde {path}")
     except RuntimeError as e:
         logging.error(f"[WARN] Error al cargar completamente {path}: {str(e).splitlines()[0]}")
         model.load_state_dict(sd, strict=False)
-        logging.info(f"[DONE] Modelo cargado parcialmente desde {path}")
+        logging.info(f"Modelo cargado parcialmente desde {path}")
 
     model.to(DEVICE)
     model.eval()
@@ -72,17 +65,12 @@ def play_one_game(modelA, modelB, game, mcts_args_a, mcts_args_b, max_moves=400)
     state = game.get_initial_state()  # tu método real
     move_count = 0
 
-    # Alternaremos turnos consultando game.get_value_and_terminated(state)
     while True:
         value, terminated = game.get_value_and_terminated(state)
         if terminated:
-            # value: -1 si mate (desde la perspectiva del jugador que movió?), 
-            # en tu implementación: -1 para checkmate => probablemente el jugador que acaba de mover perdió.
-            # En la práctica, lo que nos interesa es interpretar winner:
-            # Para simplicidad: llamamos a game.get_value_and_terminated y si terminated -> revisar winner con is_checkmate/stalemate
+       
             break
-        # Decidir qué modelo juega ahora: en la implementación del state (python-chess) .turn indica True=white
-        # Pero tu state es chess.Board() y tiene attribute .turn
+       
         is_white_to_move = state.turn
         if is_white_to_move:
             mcts = MCTS(game, mcts_args_a, modelA, device=DEVICE)
@@ -91,7 +79,6 @@ def play_one_game(modelA, modelB, game, mcts_args_a, mcts_args_b, max_moves=400)
             mcts = MCTS(game, mcts_args_b, modelB, device=DEVICE)
             action_probs = mcts.search(state)
 
-        # seleccionar acción determinísticamente (puedes cambiar a muestreo)
         if np.sum(action_probs) == 0:
             # fallback: elegir acción legal al azar
             legal_mask = game.get_valid_moves(state)
@@ -103,31 +90,23 @@ def play_one_game(modelA, modelB, game, mcts_args_a, mcts_args_b, max_moves=400)
         else:
             action = int(np.argmax(action_probs))
 
-        # aplicar acción
-        # get_next_state(state, action, player) en tu código requiere player, pasamos 1 como en tu test_play.py
+   
         state = game.get_next_state(state, action, 1)
         move_count += 1
         if move_count >= max_moves:
             break
 
-    # Interpretar resultado usando get_value_and_terminated OR usando inspección final:
     val, terminated = game.get_value_and_terminated(state)
-    # Si tu función devuelve -1 para checkmate (probablemente signifique el jugador que movió perdió)
-    # Lo más robusto: inspeccionar estado final con python-chess:
-    # state.is_checkmate() / state.is_stalemate()
+
     if state.is_checkmate():
-        # quien está en turno perdió -> si turn is True (white to move) -> black delivered mate -> black wins
         if state.turn:
-            # white to move but checkmate -> black won -> return 0.0
             return 0.0
         else:
             return 1.0
     elif state.is_stalemate() or state.is_insufficient_material() or state.is_fivefold_repetition() or state.is_fifty_moves():
         return 0.5
     else:
-        # fallback: usar value returned
         try:
-            # Si value is from perspective of current player, no trivial mapping; fallback a empate
             return 0.5
         except Exception:
             return 0.5
@@ -164,7 +143,6 @@ def main():
             a_name = os.path.basename(a); b_name = os.path.basename(b)
             wins_a = draws = wins_b = 0
             for k in range(args.per_pair):
-                # alternar colores
                 if k % 2 == 0:
                     res = play_one_game(models[a], models[b], game, mcts_args, mcts_args)
                 else:

@@ -17,9 +17,6 @@ import json
 from datetime import datetime
 from torch.utils.data import Dataset, DataLoader
 
-# ==========================================
-# 1. CLASE DATASET OPTIMIZADA
-# ==========================================
 class ChessDataset(Dataset):
     def __init__(self, memory):
         self.memory = memory
@@ -30,17 +27,13 @@ class ChessDataset(Dataset):
     def __getitem__(self, idx):
         state, policy_targets, value_targets = self.memory[idx]
         
-        # Devolvemos numpy arrays float32. 
-        # La conversión a BFloat16 se hará en la GPU dentro del loop de train.
+      
         return (
             np.array(state, dtype=np.float32), 
             np.array(policy_targets, dtype=np.float32), 
             np.array(value_targets, dtype=np.float32)
         )
 
-# ==========================================
-# 2. CLASE ALPHAZERO PRINCIPAL
-# ==========================================
 class AlphaZero:
     def __init__(self, model, optimizer, game, args):
         self.model = model
@@ -58,16 +51,15 @@ class AlphaZero:
 
         self.model.to(self.device)
 
-        # Optimización Intel IPEX (BFloat16 para Ponte Vecchio)
+     
         try:
-    # ...
+
          logging.info("Modelo optimizado con Intel Extension for PyTorch (IPEX) - BFloat16")
         except Exception as e:
-            # ...
+         
             logging.warning(f"No se pudo optimizar con IPEX: {e}")
 
-        # LA CLAVE: Mover el estado del optimizador al dispositivo XPU/CPU
-        # Esto corrige el error 'xpu:0 and cpu' en el optimizador.
+  
         for state in self.optimizer.state.values():
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
@@ -92,9 +84,7 @@ class AlphaZero:
         os.makedirs(self.checkpoint_dir, exist_ok=True)
         self._verify_checkpoint_directory()
 
-    # ------------------------------------------------------------------
-    # UTILIDADES DE GUARDADO (Sin cambios mayores)
-    # ------------------------------------------------------------------
+
     def _verify_checkpoint_directory(self):
         try:
             os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -165,9 +155,6 @@ class AlphaZero:
             return True
         return False
 
-    # ------------------------------------------------------------------
-    # SELF PLAY (Corregido: Ruido y Recompensas)
-    # ------------------------------------------------------------------
     def selfPlay(self, iteration=0, game_id=0):
         memory = []
         training_samples = []
@@ -176,7 +163,6 @@ class AlphaZero:
         play_history = []
 
         while True:
-            # IMPORTANTE: add_noise=True para exploración
             action_probs = self.mcts.search(state, add_noise=True)
             
             if not isinstance(action_probs, np.ndarray):
@@ -186,7 +172,7 @@ class AlphaZero:
             if move_count < 30:
                 temperature = 1
             else:
-                temperature = 0.5 # Bajamos temperatura más tarde
+                temperature = 0.5 
 
             # Aplicar temperatura
             if temperature == 0:
@@ -210,36 +196,23 @@ class AlphaZero:
             if is_terminal:
                 returnMemory = []
                 
-                # 1. DETERMINAR GANADOR
                 if value == 0:
                     winner = 'draw'
                 else:
                     winner = 'white' if (state.turn == False) else 'black'
 
-                # 2. ASIGNAR RECOMPENSAS (CON FACTOR DE DESPRECIO)
-                # -----------------------------------------------------
-                # Configuración del "Factor de Desprecio" (Contempt)
-                # Un valor negativo pequeño castiga al modelo por no ganar.
-                # Valor recomendado: -0.05 a -0.1.
-                # Si es muy bajo (ej. -0.5), el modelo se suicidará para evitar tablas largas.
                 DRAW_PENALTY = -0.1 
-                # -----------------------------------------------------
 
                 for idx, (hist_state, hist_action_probs, hist_turn, hist_chosen_action) in enumerate(play_history):
                     
                     if winner == 'draw':
-                        # AQUÍ ESTÁ EL CAMBIO:
-                        # En lugar de 0.0, le damos un castigo leve.
-                        # Esto fuerza al ValueHead a predecir valores negativos para tablas,
-                        # obligando al MCTS a buscar alternativas ganadoras.
+                  
                         hist_outcome = DRAW_PENALTY
                         
                     elif winner == 'white':
-                        # Ganó blanco: +1 si era turno blanco, -1 si era negro
                         hist_outcome = 1.0 if hist_turn else -1.0
                         
                     else: # winner == 'black'
-                        # Ganó negro: -1 si era turno blanco, +1 si era negro
                         hist_outcome = -1.0 if hist_turn else 1.0
 
                     encoded = self.game.get_encoded_state(hist_state)
@@ -274,9 +247,6 @@ class AlphaZero:
 
                 return returnMemory
 
-    # ------------------------------------------------------------------
-    # TRAIN (Corregido: Tipos de Datos y DataLoader)
-    # ------------------------------------------------------------------
     def train(self, memory):        
         dataset = ChessDataset(memory)
         dataloader = DataLoader(
@@ -293,23 +263,19 @@ class AlphaZero:
 
         self.model.train()
         
-        # DETECTAR TIPO DE DATO (Crucial para IPEX BFloat16)
         target_dtype = next(self.model.parameters()).dtype
 
         for batch in dataloader:
             state_batch, policy_targets_batch, value_targets_batch = batch
 
-             # 1. State: Mover y convertir dtype (CRUCIAL)
             state = state_batch.to(self.device, non_blocking=True).to(dtype=target_dtype)
             
-            # 2. Targets: Mover a dispositivo (manteniendo float32, si es necesario)
             policy_targets = policy_targets_batch.to(self.device, non_blocking=True)
             value_targets = value_targets_batch.to(self.device, non_blocking=True).unsqueeze(1)
 
             # Forward pass
             out_policy, out_value = self.model(state)
-            
-            # Loss calculation (.float() asegura estabilidad si el modelo está en BFloat16)
+
             policy_loss = -torch.sum(policy_targets * F.log_softmax(out_policy.float(), dim=1)) / policy_targets.size(0)
             value_loss = F.mse_loss(out_value.float(), value_targets)
             
@@ -329,9 +295,7 @@ class AlphaZero:
 
         return avg_policy_loss, avg_value_loss
     
-    # ------------------------------------------------------------------
-    # LEARN (Corregido: Logging y NaN check)
-    # ------------------------------------------------------------------
+
     def learn(self):        
         SAVE_EVERY = self.args.get('save_every', 5)
         start_iter = self.args.get('start_iteration', 0)

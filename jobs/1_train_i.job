@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=PCI_146
-#SBATCH --job-name=test
-#SBATCH --output=test_%j.out
-#SBATCH --error=test_%j.err
+#SBATCH --job-name=_train_i_1k
+#SBATCH --output=_train_i_1k_%j.out
+#SBATCH --error=_train_i_1k_%j.err
 #SBATCH --partition=gpunode
 #SBATCH --gres=gpu:1        
 #SBATCH --ntasks=1          
@@ -16,4 +16,4 @@ export CCL_ROOT=$VIRTUAL_ENV
 
 source /home/mgbalbi/entorno_intel_gpu/bin/activate
 
-python /home/mgbalbi/UNLu-MCTSNN/v2_NN/test_700.py
+python /home/mgbalbi/UNLu-MCTSNN/v2_NN/1_train_i_1k.py

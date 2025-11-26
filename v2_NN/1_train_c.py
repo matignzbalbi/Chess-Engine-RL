@@ -8,7 +8,7 @@ from alpha_zero import AlphaZero
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)
-model = create_chess_model(game=game, num_resBlocks=6, num_hidden=64) # Bajamos
+model = create_chess_model(game=game, num_resBlocks=12, num_hidden=256) # Bajamos
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4) 
 
 args = {

@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --account=PCI_146
-#SBATCH --job-name=train_checkpoint4
-#SBATCH --output=train_checkpoint4_%j.out
-#SBATCH --error=train_checkpoint4_%j.err
+#SBATCH --job-name=1_train_g
+#SBATCH --output=1_train_g_%j.out
+#SBATCH --error=1_train_g_%j.err
 #SBATCH --partition=gpunode
 #SBATCH --gres=gpu:1        
 #SBATCH --ntasks=1          
@@ -16,4 +16,4 @@ export CCL_ROOT=$VIRTUAL_ENV
 
 source /home/mgbalbi/entorno_intel_gpu/bin/activate
 
-python /home/mgbalbi/UNLu-MCTSNN/v2_NN/checkpoint.py
+python /home/mgbalbi/UNLu-MCTSNN/v2_NN/1_train_g_200.py

@@ -14,6 +14,6 @@ module purge
 export OCL_ICD_VENDORS=/etc/OpenCL/vendors
 export CCL_ROOT=$VIRTUAL_ENV
 
-source /home/mgbalbi/entorno_intel_gpu/bin/activate
+source /home/jlivolsi/entorno_intel_gpu/bin/activate
 
-python /home/mgbalbi/UNLu-MCTSNN/v2_NN/recompensas.py
+python /home/jlivolsi/UNLu-MCTSNN/v2_NN/recompensas.py

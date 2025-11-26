@@ -15,11 +15,7 @@ import chess
 
 
 class DeadNeuronAnalyzer:
-    """
-    Analizador de neuronas muertas en modelos de ajedrez.
-    Identifica neuronas que nunca se activan (ReLU = 0 siempre).
-    """
-    
+    #Analizador de neuronas muertas en modelos de ajedrez. Identifica neuronas que nunca se activan (ReLU = 0 siempre)
     def __init__(self, model, game, device='cpu'):
         self.model = model
         self.game = game
@@ -32,7 +28,7 @@ class DeadNeuronAnalyzer:
         self.hooks = []
         
     def register_hooks(self):
-        """Registra hooks en todas las capas ReLU y BatchNorm"""
+        #Registra hooks en todas las capas ReLU y BatchNorm
         
         def hook_fn(name):
             def hook(module, input, output):
@@ -53,21 +49,21 @@ class DeadNeuronAnalyzer:
         logging.info(f"✓ Hooks registrados en {len(self.hooks)} capas")
     
     def remove_hooks(self):
-        """Remueve todos los hooks"""
+        #Remueve todos los hooks
         for hook in self.hooks:
             hook.remove()
         self.hooks = []
         logging.info("✓ Hooks removidos")
     
     def analyze_positions(self, num_positions=100, use_random=True, use_real_games=True):
-        """
-        Analiza múltiples posiciones de ajedrez
+        
+        """Analiza múltiples posiciones de ajedrez
         
         Args:
             num_positions: Cantidad de posiciones a analizar
             use_random: Si incluir movimientos aleatorios
-            use_real_games: Si incluir posiciones de partidas simuladas
-        """
+            use_real_games: Si incluir posiciones de partidas simuladas"""
+        
         logging.info(f"\n{'='*60}")
         logging.info(f"ANALIZANDO {num_positions} POSICIONES")
         logging.info(f"{'='*60}\n")
@@ -102,7 +98,7 @@ class DeadNeuronAnalyzer:
         logging.info(f"\n✓ {positions_analyzed} posiciones analizadas")
     
     def _process_position(self, state):
-        """Procesa una posición: ejecuta forward pass"""
+        #Procesa una posición: ejecuta forward pass
         try:
             encoded = self.game.get_encoded_state(state)
             tensor = torch.tensor(encoded, dtype=torch.float32, device=self.device).unsqueeze(0)
@@ -111,7 +107,7 @@ class DeadNeuronAnalyzer:
             logging.warning(f"Error procesando posición: {e}")
     
     def _generate_random_position(self, max_moves=30):
-        """Genera una posición aleatoria con movimientos legales"""
+        #Genera una posición aleatoria con movimientos legales
         state = self.game.get_initial_state()
         num_moves = np.random.randint(1, max_moves)
         
@@ -129,7 +125,7 @@ class DeadNeuronAnalyzer:
         return state
     
     def _generate_game_position(self, max_moves=60):
-        """Genera posición jugando una mini-partida aleatoria"""
+        #Genera posición jugando una mini-partida aleatoria
         state = self.game.get_initial_state()
         num_moves = np.random.randint(5, max_moves)
         
@@ -154,7 +150,7 @@ class DeadNeuronAnalyzer:
         return state
     
     def compute_statistics(self):
-        """Calcula estadísticas de neuronas muertas"""
+        #Calcula estadísticas de neuronas muertas
         
         logging.info(f"\n{'='*60}")
         logging.info("CALCULANDO ESTADÍSTICAS")
@@ -205,7 +201,7 @@ class DeadNeuronAnalyzer:
         return results
     
     def print_summary(self, results):
-        """Imprime resumen de resultados"""
+        #Imprime resumen de resultados
         
         logging.info(f"\n{'='*60}")
         logging.info("RESUMEN DE NEURONAS MUERTAS")
@@ -250,29 +246,30 @@ class DeadNeuronAnalyzer:
         logging.info(f"{'='*60}\n")
     
     def _get_severity(self, percentage):
-        """Retorna emoji según severidad"""
+        # Retorna símbolo según severidad
         if percentage == 0:
-            return "✓"
+            return "[OK]"
         elif percentage < 10:
-            return "⚠️"
+            return "[Bajo]"
         elif percentage < 30:
-            return "⚠️⚠️"
+            return "[Medio]"
         else:
-            return "❌"
+            return "[Alto]"
+
     
     def _get_overall_health(self, dead_percentage):
-        """Retorna diagnóstico general"""
+        #Retorna diagnóstico general
         if dead_percentage < 5:
             return "✓ RED SALUDABLE: Muy pocas neuronas muertas"
         elif dead_percentage < 15:
-            return "⚠️ RED ACEPTABLE: Porcentaje moderado de neuronas muertas"
+            return "RED ACEPTABLE: Porcentaje moderado de neuronas muertas"
         elif dead_percentage < 30:
-            return "⚠️⚠️ RED PROBLEMÁTICA: Alto porcentaje de neuronas muertas"
+            return "RED PROBLEMÁTICA: Alto porcentaje de neuronas muertas"
         else:
-            return "❌ RED CRÍTICA: Demasiadas neuronas muertas, considerar cambios de arquitectura"
+            return "RED CRÍTICA: Demasiadas neuronas muertas, considerar cambios de arquitectura"
     
     def plot_results(self, results, output_dir='dead_neurons_analysis'):
-        """Genera gráficos de resultados"""
+        #Genera gráficos de resultados
         
         os.makedirs(output_dir, exist_ok=True)
         
@@ -333,7 +330,7 @@ class DeadNeuronAnalyzer:
         logging.info(f"✓ Gráficos guardados en: {output_dir}/")
     
     def save_results(self, results, output_file='dead_neurons_results.json'):
-        """Guarda resultados en JSON"""
+        #Guarda resultados en JSON
         
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2)
@@ -342,9 +339,9 @@ class DeadNeuronAnalyzer:
 
 
 def load_model_from_checkpoint(checkpoint_path, game):
-    """Carga modelo desde checkpoint con su configuración"""
+    #Carga modelo desde checkpoint con su configuración
     
-    # Intentar cargar config JSON
+    #Intentar cargar config JSON
     config_path = checkpoint_path.replace('.pt', '_config.json')
     
     if os.path.exists(config_path):
@@ -357,7 +354,7 @@ def load_model_from_checkpoint(checkpoint_path, game):
         # Defaults si no hay config
         num_resBlocks = 2
         num_hidden = 32
-        logging.warning(f"⚠️ No se encontró config JSON, usando defaults")
+        logging.warning(f"No se encontró config JSON, usando defaults")
     
     logging.info(f"  num_resBlocks: {num_resBlocks}")
     logging.info(f"  num_hidden: {num_hidden}")
@@ -370,14 +367,14 @@ def load_model_from_checkpoint(checkpoint_path, game):
         model.load_state_dict(state_dict)
         logging.info(f"✓ Modelo cargado exitosamente")
     except Exception as e:
-        logging.error(f"❌ Error cargando modelo: {e}")
+        logging.error(f"Error cargando modelo: {e}")
         raise
     
     return model
 
 
 def main():
-    """Función principal"""
+    #Función principal
     
     import argparse
     
@@ -395,7 +392,7 @@ def main():
     
     # Verificar checkpoint existe
     if not os.path.exists(args.checkpoint):
-        logging.error(f"❌ Checkpoint no encontrado: {args.checkpoint}")
+        logging.error(f"Checkpoint no encontrado: {args.checkpoint}")
         return
     
     logging.info(f"\n{'='*60}")

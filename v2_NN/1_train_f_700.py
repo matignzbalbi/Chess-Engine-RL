@@ -5,6 +5,11 @@ from chess_game import ChessGame
 from model import create_chess_model
 from alpha_zero import AlphaZero
 
+# Resumén de los cambios  
+
+# Prueba pesada con 700 búsquedas dentro de MCTS. Pocas partidas por iteración por limites de tiempo dentro del job.
+# Aumentamos el número de epochs para consolidar el conocimiento.
+
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)

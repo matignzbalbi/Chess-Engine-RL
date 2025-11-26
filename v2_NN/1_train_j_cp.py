@@ -8,6 +8,10 @@ from chess_game import ChessGame
 from model import create_chess_model
 from alpha_zero import AlphaZero
 
+# Resumén de los cambios  
+
+# Este código lo usamos para cargar los pesos de modelos ya entrenados para continuar con el entrenamiento. 
+# Usa la misma arquitectura con la que se entreno la red previamente (en este caso 12, 256), pero los párametros pueden variar.
 
 def load_checkpoint(checkpoint_path, game, device='cpu'):
  

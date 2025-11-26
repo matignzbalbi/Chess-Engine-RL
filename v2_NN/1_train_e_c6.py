@@ -5,6 +5,11 @@ from chess_game import ChessGame
 from model import create_chess_model
 from alpha_zero import AlphaZero
 
+# Resumén de los cambios  
+
+# Aumentamos el valor de C drásticamente para favorecer la exploración y tratar de solventar la problematica de los empates constantes.
+# Aumentamos el batch_size para sacarle provecho a las gráficas de Clementina.
+
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)

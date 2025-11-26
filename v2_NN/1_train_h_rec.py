@@ -5,6 +5,11 @@ from chess_game import ChessGame
 from model import create_chess_model
 from alpha_zero import AlphaZero
 
+# Resumén de los cambios  
+
+# Aumentamos ligeramente C y los párametros de búsqueda para comparar los tiempos de entrenamiento.
+# En este entrenamiento realizamos cambios en el sistema de recompensas penalizando las tablas ligeramente.
+
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)
@@ -16,7 +21,7 @@ args = {
     'num_searches': 350, # Subimos
     'num_selfPlay_iterations': 20, 
     'num_iterations': 100, 
-    'num_epochs': 10, # +3
+    'num_epochs': 10, 
     'batch_size': 512,
     'save_every': 2
 }

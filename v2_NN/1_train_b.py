@@ -5,6 +5,11 @@ from chess_game import ChessGame
 from model import create_chess_model
 from alpha_zero import AlphaZero
 
+# Resumén de los cambios  
+
+# La idea detrás de este entrenamiento fue aumentar la cantidad de capas ocultas para evaluar no solo los resultados del modelo, si no también los tiempos 
+# de entrenamiento con diferentes arquitecturas.
+
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)

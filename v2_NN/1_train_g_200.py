@@ -5,6 +5,10 @@ from chess_game import ChessGame
 from model import create_chess_model
 from alpha_zero import AlphaZero
 
+# Resumén de los cambios  
+
+# Entrenamiento de prueba intermedia con C: 4. Búsquedas moderadas en el árbol de Montecarlo.
+
 INCLUDE_QUEEN_PROMOTIONS = False
 
 game = ChessGame(include_queen_promotions=INCLUDE_QUEEN_PROMOTIONS)
@@ -12,11 +16,11 @@ model = create_chess_model(game=game, num_resBlocks=12, num_hidden=256) #
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4) 
 
 args = {
-    'C': 4, # Subimos
-    'num_searches': 200, # Subimos
+    'C': 4, 
+    'num_searches': 200, 
     'num_selfPlay_iterations': 20, 
     'num_iterations': 100, 
-    'num_epochs': 10, # +3
+    'num_epochs': 10, 
     'batch_size': 512,
     'save_every': 5
 }

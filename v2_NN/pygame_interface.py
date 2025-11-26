@@ -17,7 +17,7 @@ from mcts import MCTS
 def resource_path(relative_path):
     """Devuelve una ruta válida para PyInstaller y ejecución normal."""
     try:
-        base_path = sys._MEIPASS
+        base_path = sys._MEIPASS # type: ignore
     except AttributeError:
         base_path = os.path.abspath(".")
 

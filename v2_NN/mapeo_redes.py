@@ -10,9 +10,7 @@ from model import ChessResNet
 from move_mapping import MoveMapper
 from chess_game import ChessGame
 
-# =====================================================
-# 1) Captura de activaciones con forward hooks
-# =====================================================
+
 def capturar_activaciones(modelo):
     activations = {}
 
@@ -32,9 +30,7 @@ def capturar_activaciones(modelo):
 
     return activations, handles
 
-# =====================================================
-# 2) Ejecutar forward y obtener activaciones
-# =====================================================
+
 def obtener_activaciones(modelo, input_tensor):
     modelo.eval()
     activaciones, handles = capturar_activaciones(modelo)
@@ -47,9 +43,6 @@ def obtener_activaciones(modelo, input_tensor):
 
     return activaciones
 
-# =====================================================
-# 3) Comparar activaciones entre modelos
-# =====================================================
 def comparar_activaciones(act_A, act_B):
     comunes = set(act_A.keys()) & set(act_B.keys())
     diferencias = {}
@@ -68,9 +61,7 @@ def comparar_activaciones(act_A, act_B):
 
     return diferencias
 
-# =====================================================
-# 4) Guardar gráficos
-# =====================================================
+
 def plot_activaciones(act_A, act_B, out_folder, capa):
     vA = act_A[capa]
     vB = act_B[capa]
@@ -89,9 +80,7 @@ def plot_activaciones(act_A, act_B, out_folder, capa):
     plt.savefig(os.path.join(out_folder, f"{capa.replace('/', '_')}.png"))
     plt.close()
 
-# =====================================================
-# 5) MAIN
-# =====================================================
+
 if __name__ == "__main__":
     logging.info("Cargando modelos...")
 

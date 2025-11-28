@@ -1,6 +1,5 @@
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 import ctypes 
 import pygame
 import chess
@@ -13,17 +12,7 @@ from chess_game import ChessGame
 from model import create_chess_model
 from mcts import MCTS
 
-#Rutas relativas
-def resource_path(relative_path):
-    """Devuelve una ruta válida para PyInstaller y ejecución normal."""
-    try:
-        base_path = sys._MEIPASS # type: ignore
-    except AttributeError:
-        base_path = os.path.abspath(".")
 
-    return os.path.join(base_path, relative_path)
-
-# Windows: pedir píxeles reales (DPI aware) antes de consultar resolución
 if sys.platform == "win32":
     try:
         ctypes.windll.user32.SetProcessDPIAware()
@@ -31,7 +20,6 @@ if sys.platform == "win32":
         pass
 
 pygame.init()
-# usar GetSystemMetrics para tener la resolución real del monitor (evita problemas de DPI)
 if sys.platform == "win32":
     user32 = ctypes.windll.user32
     screen_w = user32.GetSystemMetrics(0)
@@ -39,7 +27,6 @@ if sys.platform == "win32":
 else:
     info = pygame.display.Info()
     screen_w, screen_h = info.current_w, info.current_h
-
 
 # set globals
 WIDTH, HEIGHT = screen_w, screen_h
@@ -62,11 +49,6 @@ BUTTON_COLOR = (70, 130, 180)
 BUTTON_HOVER = (100, 160, 210)
 FPS = 60
 
-
-# ====================================================================
-# RENDERIZADO DE PIEZAS
-# ====================================================================
-
 def create_piece_surfaces():
     """Carga imágenes de piezas desde la carpeta assets/pieces"""
     pieces = {}
@@ -76,7 +58,7 @@ def create_piece_surfaces():
     }
 
     for symbol, filename in piece_filenames.items():
-        image_path = Path("assets/pieces") / filename
+        image_path = Path("v2_NN/assets/pieces") / filename
         if not image_path.exists():
             logging.info(f"No se encontró {image_path}, se omitirá {symbol}")
             continue
@@ -94,15 +76,9 @@ def create_piece_surfaces():
     return pieces
 
 
-# ====================================================================
-# CLASE PRINCIPAL
-# ====================================================================
-
 class ChessGUI:
-    """Interfaz gráfica principal para el ajedrez"""
 
     def __init__(self, model_path, num_resBlocks=2, num_hidden=32, num_searches=100):
-        """Inicializa la GUI"""
         global WIDTH, HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_X
         pygame.init()
 
@@ -119,10 +95,8 @@ class ChessGUI:
 
         self.monitor_size = (screen_w, screen_h)
 
-        # asegurarnos que SDL coloque la ventana en 0,0 (evita que quede abajo/derecha)
         os.environ['SDL_VIDEO_WINDOW_POS'] = "0,0"
 
-        # inicializo en NOFRAME para que cubra pantalla (no maximiza la resolución del sistema)
         self.screen = pygame.display.set_mode(self.monitor_size, pygame.NOFRAME)
 
         # actualizar globals usados por el layout
@@ -171,8 +145,7 @@ class ChessGUI:
         self.model = create_chess_model(self.game, num_resBlocks, num_hidden)
 
         try:
-            real_path = resource_path(model_path)
-            self.model.load_state_dict(torch.load(real_path, map_location='cpu'))
+            self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
             self.model.eval()
             logging.info(" Modelo cargado exitosamente")
         except FileNotFoundError:
@@ -207,7 +180,6 @@ class ChessGUI:
         }
 
     def _draw_board(self, offset_x=0, offset_y=0):
-        """Dibuja el tablero de ajedrez (compatible con giro)."""
         for row in range(8):
             for col in range(8):
                 # Calcular coordenadas según orientación
@@ -229,10 +201,7 @@ class ChessGUI:
 
 
     def _draw_highlights(self, offset_x=0, offset_y=0):
-        """Dibuja highlights (último movimiento, selección, y destinos) respetando orientación del tablero."""
-        # ==========================
-        # Último movimiento
-        # ==========================
+    
         if self.last_move:
             for square in [self.last_move.from_square, self.last_move.to_square]:
                 rank = chess.square_rank(square)
@@ -256,9 +225,7 @@ class ChessGUI:
                 s.fill(LAST_MOVE_COLOR)
                 self.screen.blit(s, rect)
 
-        # ==========================
-        # Casilla seleccionada
-        # ==========================
+   
         if self.selected_square is not None:
             rank = chess.square_rank(self.selected_square)
             file = chess.square_file(self.selected_square)
@@ -281,9 +248,7 @@ class ChessGUI:
             s.fill(SELECTED_COLOR)
             self.screen.blit(s, rect)
 
-            # ==========================
-            # Movimientos legales
-            # ==========================
+       
             for move in self.legal_moves:
                 rank = chess.square_rank(move.to_square)
                 file = chess.square_file(move.to_square)
@@ -307,7 +272,6 @@ class ChessGUI:
                     pygame.draw.circle(self.screen, HIGHLIGHT_COLOR, center, 12)
 
     def _draw_pieces(self, offset_x=0, offset_y=0):
-        """Dibuja las piezas en el tablero, respetando la orientación (flip)."""
         for square in chess.SQUARES:
             piece = self.board.piece_at(square)
             if piece:
@@ -335,17 +299,10 @@ class ChessGUI:
                 self.screen.blit(piece_surface, (x, y))
 
     def _draw_board_labels(self, offset_x=0, offset_y=0):
-        """
-        Dibuja las letras (a–h) y los números (1–8) con desplazamiento configurable.
-        Permite ajustar los padings por separado para letras y números.
-        """
-
-        #  Ajustes personalizados (podés modificarlos libremente)
-        # Números (filas)
+     
         row_padding_x = 4   # desplazamiento horizontal (derecha +)
         row_padding_y = 2   # desplazamiento vertical (abajo +)
 
-        # Letras (columnas)
         col_padding_x = -3   # desplazamiento horizontal (derecha +)
         col_padding_y = -2   # desplazamiento vertical (abajo +)
 
@@ -372,21 +329,16 @@ class ChessGUI:
 
 
     def _draw_info_panel(self, offset_x=0, offset_y=0):
-        """Dibuja el panel de información con historial a la izquierda y botones a la derecha."""
         panel_x = INFO_PANEL_X + offset_x
         y = 20 + offset_y
 
 
-        # ======================
-        # Título
-        # ======================
+
         title = self.font_title.render("AlphaZero", True, TEXT_COLOR)
         self.screen.blit(title, (panel_x + 40, y))
         y += 60
 
-        # ======================
-        # Estado del juego
-        # ======================
+    
         if self.game_over:
             if self.board.is_checkmate():
                 winner = "Negras" if self.board.turn == chess.WHITE else "Blancas"
@@ -424,18 +376,13 @@ class ChessGUI:
             self.screen.blit(val_text, (panel_x + 150, y))
             y += 28
 
-        # ======================
-        # División del panel: historial + botones
-        # ======================
         y += 20
         hist_title = self.font_large.render("Historial", True, TEXT_COLOR)
         self.screen.blit(hist_title, (panel_x, y))
         y += 40
 
-        # Mitad del ancho del panel
         half_width = (INFO_PANEL_WIDTH - 20) // 2
 
-        # ---- HISTORIAL ----
         history_surface_height = 250
         history_surface = pygame.Surface((half_width - 10, history_surface_height))
         history_surface.fill((40, 40, 40))
@@ -450,14 +397,12 @@ class ChessGUI:
         self.max_scroll = max(0, total_height - history_surface_height)
         self.screen.blit(history_surface, (panel_x, y))
 
-        # Scrollbar visual
         if self.max_scroll > 0:
             scrollbar_height = int(history_surface_height * (history_surface_height / total_height))
             scrollbar_y = y + int((self.scroll_offset / self.max_scroll) * (history_surface_height - scrollbar_height))
             scrollbar_rect = pygame.Rect(panel_x + half_width - 15, scrollbar_y, 6, scrollbar_height)
             pygame.draw.rect(self.screen, (160, 160, 160), scrollbar_rect)
 
-        # ---- BOTONES (columna derecha) ----
         button_x = panel_x + half_width + 10
         button_y = y
         button_w = half_width - 10
@@ -479,22 +424,18 @@ class ChessGUI:
         spacing = 10
         mouse_pos = pygame.mouse.get_pos()
 
-        # Coordenadas en la esquina superior derecha
         rect_full = pygame.Rect(WIDTH - top_button_w * 2 - spacing * 2, 10, top_button_w, top_button_h)
         rect_close = pygame.Rect(WIDTH - top_button_w - spacing, 10, top_button_w, top_button_h)
 
-        # Fullscreen button (sin bordes => dibujamos un rect y un marco interior)
         fs_color = BUTTON_HOVER if rect_full.collidepoint(mouse_pos) else BUTTON_COLOR
         pygame.draw.rect(self.screen, fs_color, rect_full, border_radius=8)
         inner = rect_full.inflate(-16, -16)
-        # Marco interior que simula el icono de "maximizar"
         pygame.draw.rect(self.screen, TEXT_COLOR, inner, 2, border_radius=3)
         self.buttons['Fullscreen']['rect'] = rect_full
 
-        # Close button (cruz)
         close_color = (230, 90, 90) if rect_close.collidepoint(mouse_pos) else (200, 70, 70)
         pygame.draw.rect(self.screen, close_color, rect_close, border_radius=8)
-        # Dibujar cruz
+
         padding = 10
         a = (rect_close.left + padding, rect_close.top + padding)
         b = (rect_close.right - padding, rect_close.bottom - padding)
@@ -531,7 +472,6 @@ class ChessGUI:
         mouse_pos = pygame.mouse.get_pos()
         x, y = mouse_pos
 
-        # Ajustar coordenadas del mouse según desplazamiento del tablero centrado
         x -= offset_x
         y -= offset_y
 
@@ -539,7 +479,6 @@ class ChessGUI:
         if x < 0 or x >= BOARD_SIZE or y < 0 or y >= BOARD_SIZE:
             return None
 
-        # Calcular fila y columna dentro del tablero (0–7)
         col = int(x // SQUARE_SIZE)
         row = int(y // SQUARE_SIZE)
 
@@ -574,9 +513,7 @@ class ChessGUI:
                 self.selected_square = square
                 self.legal_moves = [m for m in self.board.legal_moves if m.from_square == square]
 
-        # ==========================
-        # Si hay casilla seleccionada
-        # ==========================
+       
         else:
             # Intentar encontrar un movimiento válido hacia la casilla clickeada
             move = next((m for m in self.legal_moves if m.to_square == square), None)
@@ -886,15 +823,15 @@ def difficulty_menu():
     buttons = {
         "Principiante": {
             "rect": pygame.Rect(180, 130, 240, 50),
-            "model": "pytorch_files/model_1.pt"
+            "model": "v2_NN/pytorch_files/model_34.pt"
         },
         "Intermedio": {
             "rect": pygame.Rect(180, 200, 240, 50),
-            "model": "pytorch_files/model_4.pt"
+            "model": "v2_NN/pytorch_files/model_34.pt"
         },
         "Avanzado": {
             "rect": pygame.Rect(180, 270, 240, 50),
-            "model": "pytorch_files/model_4.pt"
+            "model": "v2_NN/pytorch_files/model_34.pt"
         }
     }
 
@@ -943,9 +880,9 @@ def main():
 
     model_path = difficulty_menu()
 
-    NUM_RESBLOCKS = 2
-    NUM_HIDDEN = 32
-    NUM_SEARCHES = 100
+    NUM_RESBLOCKS = 12
+    NUM_HIDDEN = 256
+    NUM_SEARCHES = 700
 
     # Verificar modelo seleccionado
     if not Path(model_path).exists():
@@ -959,7 +896,6 @@ def main():
 
     # Crear e iniciar GUI
     try:
-        model_path = resource_path(model_path)
         gui = ChessGUI(
             model_path=model_path,
             num_resBlocks=NUM_RESBLOCKS,
